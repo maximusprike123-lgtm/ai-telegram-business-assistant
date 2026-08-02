@@ -1,4 +1,7 @@
 .coverage
+.env
+.env.*
+!.env.example
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
@@ -6,6 +9,11 @@
 __pycache__/
 *.egg-info/
 *.py[cod]
+.DS_Store
+.idea/
+.vscode/
 build/
+coverage.xml
 dist/
+htmlcov/
 

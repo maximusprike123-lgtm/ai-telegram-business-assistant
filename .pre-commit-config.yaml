@@ -1,0 +1,38 @@
+minimum_pre_commit_version: "4.0.0"
+default_install_hook_types: [pre-commit, pre-push]
+
+repos:
+  - repo: local
+    hooks:
+      - id: detect-secrets
+        name: detect committed secrets
+        entry: detect-secrets-hook --baseline .secrets.baseline
+        language: system
+        types: [text]
+        exclude: ^\.secrets\.baseline$
+
+      - id: ruff-check
+        name: Ruff lint
+        entry: ruff check --force-exclude
+        language: system
+        types: [python]
+
+      - id: ruff-format
+        name: Ruff format check
+        entry: ruff format --check --force-exclude
+        language: system
+        types: [python]
+
+      - id: mypy
+        name: strict mypy
+        entry: mypy
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: tests
+        name: unit and architecture tests
+        entry: pytest
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

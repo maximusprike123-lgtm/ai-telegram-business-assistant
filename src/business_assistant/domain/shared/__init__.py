@@ -1,0 +1,65 @@
+"""Shared domain primitives."""
+
+from .errors import (
+    DomainError,
+    InvalidStateTransition,
+    TenantMismatchError,
+    ValidationError,
+)
+from .events import DomainEvent
+from .identifiers import (
+    AggregateId,
+    BookingId,
+    CategoryId,
+    ConversationId,
+    CustomerId,
+    DocumentId,
+    EntityId,
+    HandoffId,
+    LeadId,
+    ScheduleId,
+    ServiceId,
+    TenantId,
+)
+from .value_objects import (
+    Citation,
+    Confidence,
+    IdempotencyKey,
+    Locale,
+    Money,
+    PhoneNumber,
+    PriceMode,
+    PricePresentation,
+    TimeRange,
+    ensure_aware,
+)
+
+__all__ = [
+    "AggregateId",
+    "BookingId",
+    "CategoryId",
+    "Citation",
+    "Confidence",
+    "ConversationId",
+    "CustomerId",
+    "DocumentId",
+    "DomainError",
+    "DomainEvent",
+    "EntityId",
+    "HandoffId",
+    "IdempotencyKey",
+    "InvalidStateTransition",
+    "LeadId",
+    "Locale",
+    "Money",
+    "PhoneNumber",
+    "PriceMode",
+    "PricePresentation",
+    "ScheduleId",
+    "ServiceId",
+    "TenantId",
+    "TenantMismatchError",
+    "TimeRange",
+    "ValidationError",
+    "ensure_aware",
+]

@@ -10,7 +10,8 @@ knowledge answers, lead qualification, booking, and human handoff.
 
 - Phase 0: repository and architecture-decision baseline
 - Phase 1: framework-independent domain foundation
-- Phases 2–13: not implemented
+- Phase 2: PostgreSQL persistence, migrations, repositories, and fictional demo seed
+- Phases 3–13: not implemented
 
 The current code is deliberately not a chatbot. Consequential operations belong to validated
 application and domain workflows; future AI output remains advisory until it passes structured,
@@ -28,8 +29,8 @@ presentation -> application <- infrastructure
 
 Dependencies point inward. Domain and application modules cannot import FastAPI, aiogram,
 SQLAlchemy, Redis, Celery, or OpenAI SDK types. PostgreSQL/pgvector will be authoritative,
-Redis will hold non-authoritative short-lived state, and background effects will use a
-transactional outbox. These components are decisions only until their roadmap phases.
+Redis will hold non-authoritative short-lived state. Phase 2 creates the transactional outbox
+schema but intentionally defers dispatch workers to Phase 10.
 
 See [Architecture overview](docs/architecture/README.md) and the
 [ADR index](docs/architecture/decisions.md).
@@ -57,7 +58,8 @@ python -m pip install --no-deps --no-build-isolation --editable .
 cp .env.example .env
 ```
 
-Phase 0/1 tests do not require values in `.env` or external services.
+Unit and architecture tests need no external service. Phase 2 integration tests require a real
+PostgreSQL database with pgvector; set `TEST_DATABASE_URL`. SQLite is not supported.
 
 Run the complete local gate:
 
@@ -82,19 +84,24 @@ Detailed setup, lock updates, and CI-equivalent commands are in
 [Developer workflow](docs/development.md). Configuration ownership is documented in
 [Environment and configuration](docs/configuration.md).
 
+Database migration and fictional demo seed commands are documented in the
+[Phase 2 database runbook](docs/operations/database.md).
+
 ## Repository layout
 
 ```text
 src/business_assistant/
 ├── domain/          # Pure entities, policies, events, and value objects
 ├── application/     # Use-case boundaries and inward-facing ports
-├── infrastructure/  # Replaceable adapters; currently a phase marker only
+├── infrastructure/  # Async PostgreSQL repositories, mappings, UoW, and demo seed
 ├── presentation/    # Telegram/HTTP adapters; currently a phase marker only
 ├── bootstrap/       # Future composition root
 └── config/          # Future validated runtime settings boundary
 tests/
 ├── unit/
-└── architecture/
+├── architecture/
+└── integration/     # Real PostgreSQL migration/repository/constraint tests
+migrations/          # Static Alembic revisions
 docs/
 └── architecture/
 ```
@@ -106,4 +113,3 @@ docs/
 
 The implementation specification remains the source of truth. Documentation in this repository
 records decisions and implementation status; it does not replace the specification.
-

@@ -1,7 +1,8 @@
 # Environment and configuration baseline
 
-`.env.example` is an inventory of future runtime settings, not an active configuration loader.
-Phase 0/1 code has no runtime dependency on environment variables.
+`.env.example` is a safe inventory, not a committed runtime configuration. Phase 2 Alembic and
+seed commands read `DATABASE_URL`; integration tests read `TEST_DATABASE_URL`. The future
+application startup configuration loader remains Phase 3 work.
 
 ## Configuration layers
 
@@ -29,6 +30,12 @@ secrets do not belong in tenant configuration.
 | Controls | upload, retention, rate limits | environment defaults, then tenant policy |
 | Admin bootstrap | local operator token | local demo only |
 
+## Phase 2 database variables
+
+Both database variables must use `postgresql+asyncpg://`; SQLite is rejected. `APP_ENV` must be
+`local`, `development`, or `test` for the fictional Northstar seed. Pool settings are inventoried
+for the later composition root and are not silently consumed by migration commands.
+
 ## Validation policy for later phases
 
 The future configuration adapter must fail startup safely when required values are absent or
@@ -43,7 +50,8 @@ secret value.
 - Keep staging/production values in the deployment platform's secret manager.
 - Never reuse secrets across environments or store them in tenant records, logs, fixtures, CI
   output, screenshots, or model prompts.
-- Empty values in `.env.example` are deliberate safe placeholders.
+- Empty secret values and `change-me` database credentials in `.env.example` are deliberate safe
+  placeholders and must never be used as production credentials.
 - Rotate any value immediately if it enters Git history; deleting the current file is not enough.
 
 The fictional demo defaults are not approved legal, privacy, or operational policy for a real

@@ -27,6 +27,7 @@ class ServiceCategory:
 class Service:
     id: ServiceId
     tenant_id: TenantId
+    category_id: CategoryId
     code: str
     names: dict[Locale, str]
     descriptions: dict[Locale, str]

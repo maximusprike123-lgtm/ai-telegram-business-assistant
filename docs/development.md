@@ -4,7 +4,8 @@
 
 - Python 3.12 or newer; CI verifies Python 3.12 and 3.13.
 - Git.
-- No database, Redis, Telegram token, OpenAI key, or Docker runtime is needed for Phase 0/1.
+- PostgreSQL 18 with pgvector and `btree_gist` is required for the Phase 2 integration gate.
+- Redis, Telegram, FastAPI, Celery, and OpenAI are not used in Phase 2.
 
 ## First setup
 
@@ -32,6 +33,10 @@ detect-secrets-hook --baseline .secrets.baseline $(git ls-files)
 python -m build --no-isolation
 python -m pip check
 ```
+
+Set `TEST_DATABASE_URL` to a disposable real PostgreSQL database before `pytest`; the migration
+tests upgrade and downgrade its application schema. Never point tests at shared or production data.
+The database user must be able to create the `vector` and `btree_gist` extensions.
 
 `pytest` enforces at least 85% overall coverage through `pyproject.toml`. Domain and application
 coverage should remain higher where business consequences are involved. Do not lower a gate to
@@ -70,3 +75,4 @@ later roadmap phase early.
 - Keep UTC-aware timestamps internally and convert using the tenant timezone at boundaries.
 - Add requirement IDs to behavioral tests and update traceability documentation.
 - Never commit `.env`, credentials, real PII, provider payloads, or machine-specific paths.
+- Keep Alembic revisions static; do not import current metadata from an already-released revision.

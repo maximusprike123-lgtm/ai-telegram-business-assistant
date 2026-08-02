@@ -6,3 +6,4 @@
 | [0002](0002-modular-monolith-and-delivery-boundaries.md) | Accepted | Modular monolith, Clean Architecture, webhook production delivery |
 | [0003](0003-authoritative-data-tenancy-and-time.md) | Accepted | PostgreSQL/pgvector, outbox, tenant scope, UTC/timezone rules |
 | [0004](0004-privacy-logging-and-secret-policy.md) | Accepted | Data minimization, safe logs, audit separation, runtime secrets |
+| [0005](0005-phase-2-persistence-boundary.md) | Accepted | Async persistence mappings, migrations, tenant constraints, and seed scope |

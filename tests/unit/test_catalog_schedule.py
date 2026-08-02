@@ -10,6 +10,7 @@ from business_assistant.domain.scheduling import (
     ScheduleOverride,
 )
 from business_assistant.domain.shared import (
+    CategoryId,
     Locale,
     Money,
     PriceMode,
@@ -25,6 +26,7 @@ def make_service(tenant_id: TenantId, service_id: ServiceId, **overrides: object
     values: dict[str, object] = {
         "id": service_id,
         "tenant_id": tenant_id,
+        "category_id": CategoryId.new(),
         "code": "brake-inspection",
         "names": {Locale.EN: "Brake inspection", Locale.RU: "Проверка тормозов"},
         "descriptions": {Locale.EN: "Inspection", Locale.RU: "Проверка"},

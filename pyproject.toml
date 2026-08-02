@@ -10,7 +10,12 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Proprietary" }
 authors = [{ name = "Northstar Auto Care demo team" }]
-dependencies = []
+dependencies = [
+  "alembic>=1.17,<2",
+  "asyncpg>=0.30,<1",
+  "pgvector>=0.4,<1",
+  "SQLAlchemy[asyncio]>=2.0.45,<2.1",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -21,6 +26,7 @@ dev = [
   "mypy>=1.15,<2",
   "pre-commit>=4,<5",
   "pytest>=8.3,<9",
+  "pytest-asyncio>=1.2,<2",
   "pytest-cov>=6,<7",
   "ruff>=0.11,<1",
 ]
@@ -31,6 +37,10 @@ packages = ["src/business_assistant"]
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers --cov=business_assistant --cov-report=term-missing --cov-fail-under=85"
 testpaths = ["tests"]
+markers = [
+  "postgresql: requires a real PostgreSQL database with pgvector",
+]
+asyncio_mode = "strict"
 
 [tool.ruff]
 target-version = "py312"

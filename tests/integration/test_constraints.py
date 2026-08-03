@@ -5,12 +5,18 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from business_assistant.infrastructure.persistence.seed import (
+    NORTHSTAR_TENANT_ID,
+    northstar_services,
+    seed_northstar,
+)
 from business_assistant.infrastructure.persistence.sqlalchemy.models import (
     BookingRow,
     BusinessScheduleRow,
     CustomerRow,
     ResourceRow,
     ServiceCategoryRow,
+    ServiceResourceRow,
     ServiceRow,
     TenantRow,
 )
@@ -158,5 +164,52 @@ async def test_database_rejects_overlapping_active_bookings_for_one_resource(
                 **common,
             )
         )
+        with pytest.raises(IntegrityError):
+            await session.flush()
+
+
+@pytest.mark.asyncio
+async def test_phase5_assignment_rejects_cross_tenant_service_and_resource(
+    postgresql_url: str,
+    database: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
+) -> None:
+    _, factory = database
+    await seed_northstar(postgresql_url, "test")
+    other_tenant, schedule_id, resource_id = uuid4(), uuid4(), uuid4()
+    async with factory() as session:
+        session.add(tenant_row(other_tenant, "other-booking-shop"))
+        await session.flush()
+        session.add(
+            BusinessScheduleRow(
+                id=schedule_id,
+                tenant_id=other_tenant,
+                name="Hours",
+                timezone="Europe/Moscow",
+                active=True,
+            )
+        )
+        await session.flush()
+        session.add(
+            ResourceRow(
+                id=resource_id,
+                tenant_id=other_tenant,
+                schedule_id=schedule_id,
+                resource_type="bay",
+                capacity=1,
+                active=True,
+            )
+        )
+        await session.flush()
+        session.add(
+            ServiceResourceRow(
+                id=uuid4(),
+                tenant_id=other_tenant,
+                service_id=northstar_services()[0].id.value,
+                resource_id=resource_id,
+                required_capacity=1,
+                active=True,
+            )
+        )
+        assert other_tenant != NORTHSTAR_TENANT_ID.value
         with pytest.raises(IntegrityError):
             await session.flush()

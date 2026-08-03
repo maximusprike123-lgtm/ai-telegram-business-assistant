@@ -5,8 +5,9 @@
 - Python 3.12 or newer; CI verifies Python 3.12 and 3.13.
 - Git.
 - PostgreSQL 18 with pgvector and `btree_gist` is required for the integration gate.
-- FastAPI serves the protected Phase 3 API and authenticated Phase 4 webhook. aiogram 3 is the
-  Telegram presentation adapter. Redis, Celery, and OpenAI remain disabled and are not required.
+- FastAPI serves the protected business API and authenticated Telegram webhook. aiogram 3 is the
+  Telegram presentation adapter. Phase 5 booking transactions require PostgreSQL; Redis, Celery,
+  and OpenAI remain disabled and are not required.
 
 ## First setup
 
@@ -43,13 +44,14 @@ The database user must be able to create the `vector` and `btree_gist` extension
 coverage should remain higher where business consequences are involved. Do not lower a gate to
 make a change pass.
 
-Focused Phase 3 and Phase 4 checks can be run with:
+Focused Phase 3 through Phase 5 checks can be run with:
 
 ```bash
 pytest tests/unit/test_configuration.py tests/unit/test_phase3_queries.py \
   tests/unit/test_schedule_engine.py tests/unit/test_telegram_application.py \
   tests/unit/test_telegram_rendering.py tests/unit/test_telegram_dispatcher.py tests/api
 pytest -m postgresql
+alembic check
 ```
 
 OpenAPI generation is covered by the API tests. To run the fictional demo API, migrate and seed a
@@ -65,10 +67,13 @@ After migrating and seeding a disposable database, use the Phase 4 environment i
 ```bash
 uvicorn business_assistant.bootstrap.phase4:create_app_from_environment --factory
 business-assistant-telegram-polling  # explicit local polling mode only
+business-assistant-expire-holds      # bounded manual Phase 5 cleanup
 ```
 
 The [Telegram runbook](operations/phase-4-telegram.md) documents mutually exclusive modes,
 webhook registration, secrets, retry semantics, and update-ledger cleanup.
+The [booking runbook](operations/phase-5-booking.md) documents demo policy, transaction guarantees,
+manual hold expiry, privacy boundaries, and deferred behavior.
 
 ## Git hooks
 

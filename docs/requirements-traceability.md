@@ -29,16 +29,16 @@ not acceptance by itself.
 | FR-033 | 1, 6 | Deterministic score boundary implemented; configured rules planned |
 | FR-034 | 1, 2, 6 | Lead fields/consent invariant and persistence mapping implemented; use cases planned |
 | FR-035 | 6, 10 | Planned: urgent rules and notifications |
-| FR-040 | 3, 5 | Tenant-local hours/status rendering implemented; appointment slots planned |
-| FR-041 | 3, 5 | Recurring/override hours engine implemented; resource availability planned |
-| FR-042 | 5 | Planned: durable short-lived slot holds |
-| FR-043 | 2, 5 | Idempotency value/object unique DB key implemented; atomic confirmation planned |
-| FR-044 | 5, 6 | Planned: configured data collection |
-| FR-045 | 5 | Planned: immutable review and confirmation token |
-| FR-046 | 5 | Planned: cancel/reschedule use cases |
-| FR-047 | 1, 2, 5 | Lifecycle, history persistence, and overlap constraint implemented; use cases planned |
+| FR-040 | 3, 5 | Implemented: bookable dates/times rendered in tenant-local time with timezone |
+| FR-041 | 3, 5 | Implemented for indivisible capacity units: hours/breaks/overrides, duration/buffer, resources, blackout, bookings/holds, notice/horizon |
+| FR-042 | 5 | Implemented: displayed slots require a durable short-lived hold before review |
+| FR-043 | 2, 5 | Implemented: locked atomic confirmation, unique idempotency/hold/reference, GiST conflict guard |
+| FR-044 | 5, 6 | Implemented for booking: tenant policy bounds required name/phone and optional note |
+| FR-045 | 5 | Implemented: safe summary and signed explicit confirmation callback |
+| FR-046 | 5 | Implemented: identity-owned idempotent cancellation and atomic new-hold rescheduling under cutoff |
+| FR-047 | 1, 2, 5 | Implemented: no hard delete, deterministic lifecycle, ordered status history |
 | FR-048 | 5, 10 | Planned: post-commit outbox notifications |
-| FR-049 | 5, 10 | Planned: hold expiry and cleanup worker |
+| FR-049 | 5, 10 | Implemented at read/confirm plus bounded manual cleanup; automatic worker deferred by Phase 5 scope |
 | FR-050 | 3 | Implemented: override precedence, current status, bounded next-open calculation |
 | FR-051 | 3, 4 | Implemented: Telegram renders status, hours, and deterministic next opening |
 | FR-052 | 3, 6 | Handoff due-time field implemented; next-open policy planned |
@@ -46,7 +46,7 @@ not acceptance by itself.
 | FR-061 | 9 | Planned: facts with provenance/confidence/sensitivity |
 | FR-062 | 9 | Planned: confirmation-state enforcement |
 | FR-063 | 9 | Planned: summary authority boundary |
-| FR-064 | 4, 5, 9 | Phase 4 safe no-active-workflow cancel; booking hold release remains Phase 5 |
+| FR-064 | 4, 5, 9 | Implemented for booking: `/cancel` releases active draft/hold without cancelling appointments |
 | FR-065 | 9, 11 | Planned: retention and anonymization workflow |
 | FR-070 | 4, 6 | Phase 4 explicit non-creating human-help placeholder; real handoff entry is Phase 6 |
 | FR-071 | 6, 7 | Handoff reason model implemented; trigger policy planned |

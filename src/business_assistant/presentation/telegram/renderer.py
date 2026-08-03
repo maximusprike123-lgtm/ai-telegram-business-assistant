@@ -1,7 +1,15 @@
 """English-only, HTML-safe Telegram rendering with explicit platform limits."""
 
+from datetime import date
 from html import escape
+from zoneinfo import ZoneInfo
 
+from business_assistant.application.bookings import (
+    AvailableSlot,
+    BookingDraft,
+    BookingResult,
+    SlotHold,
+)
 from business_assistant.application.catalog import ServiceCategoryDTO, ServiceDTO
 from business_assistant.application.scheduling import (
     BusinessDayDTO,
@@ -10,7 +18,7 @@ from business_assistant.application.scheduling import (
 )
 from business_assistant.application.tenants import TenantPublicProfileDTO
 
-from .callbacks import CallbackAction
+from .callbacks import CallbackAction, booking_date_page, booking_slot_page
 from .models import NavigationButton, RenderedMessage
 
 TELEGRAM_TEXT_LIMIT = 4096
@@ -51,7 +59,7 @@ class TelegramRenderer:
             f"({_safe(profile.timezone)})\n"
             f"{contact_block}\n"
             "This is a fictional portfolio demo. It can show verified business information, "
-            "but AI and appointment booking are not enabled. It stores only numeric Telegram "
+            "and create fictional demo appointments. AI is not enabled. It stores numeric Telegram "
             "identifiers for continuity and duplicate protection; use Privacy for details."
         )
         return RenderedMessage(
@@ -60,6 +68,10 @@ class TelegramRenderer:
                 (
                     _button("Services", CallbackAction.CATALOG),
                     _button("Business hours", CallbackAction.HOURS),
+                ),
+                (
+                    _button("Book appointment", CallbackAction.BOOK),
+                    _button("My appointment", CallbackAction.MY_BOOKING),
                 ),
                 (
                     _button("Privacy", CallbackAction.PRIVACY),
@@ -113,9 +125,9 @@ class TelegramRenderer:
         if service.eligibility_notes:
             notes += f"\n\n<b>Please note:</b> {_safe(service.eligibility_notes)}"
         bookable = (
-            "Appointment booking will be available in a later demo phase."
+            "Choose Book now to continue."
             if service.bookable
-            else "This service is not available for booking."
+            else ("This service is not available for booking.")
         )
         text = (
             f"<b>{_safe(service.name)}</b>\n"
@@ -127,6 +139,11 @@ class TelegramRenderer:
         return RenderedMessage(
             text,
             (
+                *(
+                    (_button("Book now", CallbackAction.BOOK_SERVICE, service.id),)
+                    if service.bookable
+                    else ()
+                ),
                 (_button("Back to services", CallbackAction.CATALOG),),
                 (_button("Home", CallbackAction.HOME),),
             ),
@@ -161,8 +178,9 @@ class TelegramRenderer:
 
     def help(self) -> RenderedMessage:
         return RenderedMessage(
-            "<b>Help</b>\nUse /catalog for services, /hours for opening times, /cancel "
-            "to clear navigation, or the menu below. Free-form questions receive a safe, "
+            "<b>Help</b>\nUse the menu to browse services, book or manage a fictional demo "
+            "appointment, and see opening times. /cancel clears only the active booking flow. "
+            "Free-form questions receive a safe, "
             "deterministic reply because AI is not enabled.",
             ((_button("Home", CallbackAction.HOME),),),
             show_reply_menu=True,
@@ -190,11 +208,185 @@ class TelegramRenderer:
             ((_button("Home", CallbackAction.HOME),),),
         )
 
+    def booking_services(self, services: tuple[ServiceDTO, ...]) -> RenderedMessage:
+        rows = tuple(
+            (_button(item.name, CallbackAction.BOOK_SERVICE, item.id),)
+            for item in services[:PAGE_SIZE]
+            if item.bookable
+        )
+        return RenderedMessage(
+            "<b>Book an appointment</b>\nChoose an active service.",
+            (*rows, (_button("Home", CallbackAction.HOME),)),
+        )
+
+    def booking_dates(
+        self, service: ServiceDTO, draft: BookingDraft, dates: tuple[date, ...]
+    ) -> RenderedMessage:
+        rows = tuple(
+            (
+                _button(
+                    item.strftime("%a, %d %b"),
+                    CallbackAction.BOOK_DATE,
+                    str(draft.id),
+                    booking_date_page(item),
+                ),
+            )
+            for item in dates
+        )
+        if not rows:
+            return self.no_slots()
+        return RenderedMessage(
+            f"<b>{_safe(service.name)}</b>\nChoose an available date.",
+            (*rows, (_button("Cancel booking flow", CallbackAction.FLOW_CANCEL),)),
+        )
+
+    def booking_times(
+        self, service: ServiceDTO, draft: BookingDraft, slots: tuple[AvailableSlot, ...]
+    ) -> RenderedMessage:
+        rows = tuple(
+            (
+                _button(
+                    slot.local_time,
+                    CallbackAction.BOOK_SLOT,
+                    str(draft.id),
+                    booking_slot_page(slot.start_at, slot.timezone),
+                ),
+            )
+            for slot in slots[:12]
+        )
+        if not rows:
+            return self.no_slots()
+        assert draft.selected_date is not None
+        return RenderedMessage(
+            f"<b>{_safe(service.name)}</b>\n"
+            f"Available times for {draft.selected_date.strftime('%A, %d %B %Y')}. "
+            f"Times use {_safe(slots[0].timezone)}.",
+            (*rows, (_button("Cancel booking flow", CallbackAction.FLOW_CANCEL),)),
+        )
+
+    def ask_name(self, hold: SlotHold) -> RenderedMessage:
+        return RenderedMessage(
+            "The time is held for 5 minutes. Enter the customer name for this appointment. "
+            "Only the validated name is stored; the message body is not retained.",
+            ((_button("Cancel booking flow", CallbackAction.FLOW_CANCEL),),),
+        )
+
+    def ask_phone(self) -> RenderedMessage:
+        return RenderedMessage(
+            "Enter the phone number the workshop may use for this appointment. "
+            "By continuing, you consent to storing it with this fictional demo booking.",
+            ((_button("Cancel booking flow", CallbackAction.FLOW_CANCEL),),),
+        )
+
+    def booking_review(
+        self, service: ServiceDTO, draft: BookingDraft, hold: SlotHold
+    ) -> RenderedMessage:
+        local = hold.time_range.start.astimezone(ZoneInfo(hold.timezone))
+        phone = draft.customer_phone or ""
+        masked_phone = f"ending {phone[-4:]}" if len(phone) >= 4 else "provided"
+        return RenderedMessage(
+            "<b>Review the appointment</b>\n"
+            f"Service: {_safe(service.name)}\n"
+            f"When: {local.strftime('%A, %d %B %Y at %H:%M')} "
+            f"({_safe(str(local.tzinfo))})\n"
+            f"Customer: {_safe(draft.customer_name or '')}\n"
+            f"Phone: {_safe(masked_phone)}\n\n"
+            "Confirm only if these details are correct. No appointment exists until "
+            "confirmation succeeds.",
+            (
+                (_button("Confirm appointment", CallbackAction.BOOK_CONFIRM, str(draft.id)),),
+                (_button("Cancel booking flow", CallbackAction.FLOW_CANCEL),),
+            ),
+        )
+
+    def booking_confirmed(self, booking: BookingResult) -> RenderedMessage:
+        local = booking.start_at.astimezone(ZoneInfo(booking.timezone))
+        return RenderedMessage(
+            "<b>Appointment confirmed</b>\n"
+            f"Reference: <code>{_safe(booking.public_reference)}</code>\n"
+            f"Service: {_safe(booking.service_name)}\n"
+            f"When: {local.strftime('%A, %d %B %Y at %H:%M')} "
+            f"({_safe(booking.timezone)})\n\n"
+            "This is a fictional portfolio demo; no real workshop appointment was created.",
+            ((_button("My appointment", CallbackAction.MY_BOOKING),),),
+        )
+
+    def my_booking(self, booking: BookingResult) -> RenderedMessage:
+        local = booking.start_at.astimezone(ZoneInfo(booking.timezone))
+        return RenderedMessage(
+            "<b>My appointment</b>\n"
+            f"Reference: <code>{_safe(booking.public_reference)}</code>\n"
+            f"Service: {_safe(booking.service_name)}\n"
+            f"When: {local.strftime('%A, %d %B %Y at %H:%M')} ({_safe(booking.timezone)})\n"
+            f"Status: {_safe(booking.status)}",
+            (
+                (_button("Reschedule", CallbackAction.RESCHEDULE, str(booking.id)),),
+                (
+                    _button(
+                        "Cancel appointment", CallbackAction.APPOINTMENT_CANCEL, str(booking.id)
+                    ),
+                ),
+                (_button("Home", CallbackAction.HOME),),
+            ),
+        )
+
+    def no_booking(self) -> RenderedMessage:
+        return RenderedMessage(
+            "No eligible upcoming appointment was found for this Telegram identity.",
+            ((_button("Book appointment", CallbackAction.BOOK),),),
+        )
+
+    def appointment_cancel_confirmation(self, booking: BookingResult) -> RenderedMessage:
+        return RenderedMessage(
+            f"Cancel appointment <code>{_safe(booking.public_reference)}</code>? "
+            "This action is separate from clearing the current menu flow.",
+            (
+                (
+                    _button(
+                        "Yes, cancel appointment",
+                        CallbackAction.APPOINTMENT_CANCEL_CONFIRM,
+                        str(booking.id),
+                    ),
+                ),
+                (_button("Keep appointment", CallbackAction.MY_BOOKING),),
+            ),
+        )
+
+    def appointment_cancelled(self, booking: BookingResult) -> RenderedMessage:
+        return RenderedMessage(
+            f"Appointment <code>{_safe(booking.public_reference)}</code> is cancelled.",
+            ((_button("Home", CallbackAction.HOME),),),
+        )
+
+    def no_slots(self) -> RenderedMessage:
+        return RenderedMessage(
+            "No appointment times are currently available for that selection. "
+            "Refresh the booking flow to try another date.",
+            (
+                (_button("Book appointment", CallbackAction.BOOK),),
+                (_button("Home", CallbackAction.HOME),),
+            ),
+        )
+
+    def booking_expired(self) -> RenderedMessage:
+        return RenderedMessage(
+            "That held time expired or changed before confirmation. No appointment was created. "
+            "Choose a fresh time to continue.",
+            ((_button("Book appointment", CallbackAction.BOOK),),),
+        )
+
+    def booking_input_invalid(self) -> RenderedMessage:
+        return RenderedMessage(
+            "That value is not valid for the current booking step. Check the requested format "
+            "and try again, or cancel the booking flow.",
+            ((_button("Cancel booking flow", CallbackAction.FLOW_CANCEL),),),
+        )
+
     def unknown(self) -> RenderedMessage:
         return RenderedMessage(
-            "I can currently show verified services and business hours only. Use /catalog, "
-            "/hours, /help, or the menu. AI, booking, and free-form business answers are not "
-            "enabled in this phase.",
+            "Use the menu to browse verified services, book or manage a fictional demo "
+            "appointment, view business hours, or get help. AI and free-form business answers "
+            "are not enabled.",
             ((_button("Home", CallbackAction.HOME),),),
             show_reply_menu=True,
         )

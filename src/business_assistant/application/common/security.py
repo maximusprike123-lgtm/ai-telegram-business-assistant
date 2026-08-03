@@ -20,6 +20,7 @@ class Permission(StrEnum):
     PUBLIC_PROFILE_READ = "public_profile:read"
     CATALOG_READ = "catalog:read"
     SCHEDULE_READ = "schedule:read"
+    BOOKING_READ = "booking:read"
 
 
 _READ_PERMISSIONS = frozenset(Permission)

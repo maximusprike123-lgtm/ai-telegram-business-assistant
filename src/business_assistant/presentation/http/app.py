@@ -10,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
 
+from business_assistant.application.bookings import AvailableSlot, BookingApplication
 from business_assistant.application.catalog import (
     GetService,
     ListServiceCategories,
@@ -32,6 +33,7 @@ from business_assistant.domain.shared import CategoryId, ServiceId
 from business_assistant.infrastructure.security import StaticApiKeyAuthenticator
 
 from .schemas import (
+    AvailabilitySlotResponse,
     BusinessDayResponse,
     BusinessStatusResponse,
     CategoryResponse,
@@ -52,6 +54,7 @@ class Phase3ApiServices:
     status: GetBusinessStatus
     next_opening: GetNextOpening
     authenticator: StaticApiKeyAuthenticator
+    bookings: BookingApplication | None = None
 
 
 def _correlation_id(request: Request) -> str:
@@ -67,6 +70,7 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
             {"name": "Tenant", "description": "Customer-safe tenant profile"},
             {"name": "Catalog", "description": "Localized active service catalog"},
             {"name": "Schedule", "description": "Tenant-local business hours"},
+            {"name": "Booking", "description": "Resource-aware appointment availability"},
         ],
     )
     key_header = APIKeyHeader(
@@ -108,6 +112,8 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
             if exc.code == "auth.forbidden"
             else 401
             if exc.code.startswith("auth.")
+            else 409
+            if exc.code in {"booking.conflict", "booking.expired"}
             else 404
             if exc.code.endswith("not_found")
             else 422
@@ -257,5 +263,28 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
         principal: PrincipalDependency, at: datetime | None = None
     ) -> NextOpeningDTO:
         return await services.next_opening.execute(principal, at)
+
+    booking_application = services.bookings
+    if booking_application is not None:
+
+        @app.get(
+            "/api/v1/availability",
+            response_model=list[AvailabilitySlotResponse],
+            tags=["Booking"],
+            summary="List available appointment times",
+            description=(
+                "Returns deterministic resource-aware slots in tenant-local time. "
+                "Displaying a slot does not reserve it."
+            ),
+            responses=error_responses,
+        )
+        async def get_availability(
+            principal: PrincipalDependency,
+            service_id: UUID,
+            local_date: date,
+        ) -> tuple[AvailableSlot, ...]:
+            return await booking_application.availability(
+                principal, ServiceId(service_id), local_date
+            )
 
     return app

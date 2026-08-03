@@ -53,6 +53,18 @@ class BookingId(EntityId):
     pass
 
 
+class BookingDraftId(EntityId):
+    pass
+
+
+class SlotHoldId(EntityId):
+    pass
+
+
+class ResourceId(EntityId):
+    pass
+
+
 class LeadId(EntityId):
     pass
 

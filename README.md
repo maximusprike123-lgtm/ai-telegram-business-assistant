@@ -16,7 +16,9 @@ knowledge answers, lead qualification, booking, and human handoff.
   deterministic business-hours engine, and protected internal HTTP API
 - Phase 4: English-only aiogram presentation, authenticated webhook, durable update deduplication,
   minimal Telegram identity, signed menus, safe rendering, and development polling
-- Phases 5–13: not implemented
+- Phase 5: resource-aware tenant-local availability, durable slot holds and drafts, atomic
+  appointment confirmation, cancellation/rescheduling, and English-only Telegram booking
+- Phases 6–13: not implemented
 
 The current code is deliberately not a chatbot. Consequential operations belong to validated
 application and domain workflows; future AI output remains advisory until it passes structured,
@@ -98,6 +100,8 @@ The protected read-only API and Northstar examples are in the
 [Phase 3 API runbook](docs/operations/phase-3-api.md).
 Telegram webhook registration, polling, retry, and cleanup operations are in the
 [Phase 4 Telegram runbook](docs/operations/phase-4-telegram.md).
+Availability rules, booking transactions, expiry, and fictional demo policy are in the
+[Phase 5 booking runbook](docs/operations/phase-5-booking.md).
 
 ## Repository layout
 
@@ -126,6 +130,7 @@ docs/
 - [Phase 2 traceability](docs/phase-2-traceability.md)
 - [Phase 3 traceability](docs/phase-3-traceability.md)
 - [Phase 4 traceability](docs/phase-4-traceability.md)
+- [Phase 5 traceability](docs/phase-5-traceability.md)
 
 The implementation specification remains the source of truth. Documentation in this repository
 records decisions and implementation status; it does not replace the specification.

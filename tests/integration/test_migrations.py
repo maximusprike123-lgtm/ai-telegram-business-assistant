@@ -52,6 +52,11 @@ async def test_schema_has_required_extensions_tables_and_constraints(
             "outbox_events",
             "tenant_public_profiles",
             "telegram_updates",
+            "booking_policies",
+            "service_resources",
+            "resource_unavailability",
+            "booking_drafts",
+            "slot_holds",
         } <= tables
         assert exclusion == 1
     finally:

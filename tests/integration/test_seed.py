@@ -9,7 +9,10 @@ from business_assistant.infrastructure.persistence.seed import (
     seed_northstar,
 )
 from business_assistant.infrastructure.persistence.sqlalchemy.models import (
+    BookingPolicyRow,
+    ResourceRow,
     ScheduleOverrideRow,
+    ServiceResourceRow,
     ServiceRow,
     TenantPublicProfileRow,
 )
@@ -43,6 +46,11 @@ async def test_northstar_seed_is_complete_and_idempotent(
             select(func.count()).select_from(TenantPublicProfileRow)
         )
         override_count = await session.scalar(select(func.count()).select_from(ScheduleOverrideRow))
+        resource_count = await session.scalar(select(func.count()).select_from(ResourceRow))
+        assignment_count = await session.scalar(
+            select(func.count()).select_from(ServiceResourceRow)
+        )
+        policy_count = await session.scalar(select(func.count()).select_from(BookingPolicyRow))
     assert tenant is not None
     assert category is not None
     assert profile is not None
@@ -64,6 +72,9 @@ async def test_northstar_seed_is_complete_and_idempotent(
     assert count == 6
     assert profile_count == 1
     assert override_count == 2
+    assert resource_count == 2
+    assert assignment_count == 12
+    assert policy_count == 1
     assert {service.price.mode.value for service in services} == {
         "exact",
         "starting_from",

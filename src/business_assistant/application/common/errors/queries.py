@@ -60,3 +60,23 @@ class AuthorizationError(ApplicationError):
 class TelegramIdentityUnavailableError(ApplicationError):
     def __init__(self) -> None:
         super().__init__("telegram.identity_unavailable", "Telegram identity is unavailable")
+
+
+class BookingNotFoundError(ApplicationError):
+    def __init__(self) -> None:
+        super().__init__("booking.not_found", "Appointment was not found")
+
+
+class BookingConflictError(ApplicationError):
+    def __init__(self, message: str = "That appointment time is no longer available") -> None:
+        super().__init__("booking.conflict", message)
+
+
+class BookingExpiredError(ApplicationError):
+    def __init__(self, message: str = "The booking hold or draft has expired") -> None:
+        super().__init__("booking.expired", message)
+
+
+class BookingPolicyError(ApplicationError):
+    def __init__(self, message: str) -> None:
+        super().__init__("booking.policy", message)

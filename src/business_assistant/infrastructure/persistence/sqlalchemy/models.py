@@ -440,6 +440,220 @@ class ResourceRow(Base):
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
+class BookingPolicyRow(Base):
+    __tablename__ = "booking_policies"
+    __table_args__ = (
+        CheckConstraint("slot_interval_minutes BETWEEN 5 AND 240", name="slot_interval_valid"),
+        CheckConstraint("booking_horizon_days BETWEEN 1 AND 365", name="horizon_valid"),
+        CheckConstraint("minimum_notice_minutes BETWEEN 0 AND 43200", name="notice_valid"),
+        CheckConstraint("hold_duration_minutes BETWEEN 1 AND 60", name="hold_duration_valid"),
+        CheckConstraint("draft_expiry_minutes BETWEEN 5 AND 1440", name="draft_expiry_valid"),
+        CheckConstraint("change_cutoff_minutes BETWEEN 0 AND 43200", name="cutoff_valid"),
+        CheckConstraint("customer_name_max_length BETWEEN 1 AND 200", name="name_limit_valid"),
+        CheckConstraint("customer_phone_max_length BETWEEN 8 AND 32", name="phone_limit_valid"),
+        CheckConstraint("customer_note_max_length BETWEEN 0 AND 2000", name="note_limit_valid"),
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), primary_key=True
+    )
+    slot_interval_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    booking_horizon_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    minimum_notice_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    hold_duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    draft_expiry_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    change_cutoff_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    customer_name_max_length: Mapped[int] = mapped_column(Integer, nullable=False)
+    customer_phone_max_length: Mapped[int] = mapped_column(Integer, nullable=False)
+    customer_note_max_length: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class ServiceResourceRow(Base):
+    __tablename__ = "service_resources"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "service_id"],
+            ["services.tenant_id", "services.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "resource_id"],
+            ["resources.tenant_id", "resources.id"],
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("tenant_id", "service_id", "resource_id"),
+        CheckConstraint("required_capacity > 0", name="required_capacity_positive"),
+        Index("ix_service_resources_tenant_service", "tenant_id", "service_id", "active"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    service_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    resource_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    required_capacity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class ResourceUnavailabilityRow(Base):
+    __tablename__ = "resource_unavailability"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "resource_id"],
+            ["resources.tenant_id", "resources.id"],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("start_at < end_at", name="time_order_valid"),
+        Index(
+            "ix_resource_unavailability_tenant_resource_time",
+            "tenant_id",
+            "resource_id",
+            "start_at",
+            "end_at",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    resource_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(200))
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class BookingDraftRow(Base):
+    __tablename__ = "booking_drafts"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "customer_id"],
+            ["customers.tenant_id", "customers.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "conversation_id"],
+            ["conversations.tenant_id", "conversations.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "service_id"],
+            ["services.tenant_id", "services.id"],
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("tenant_id", "id"),
+        CheckConstraint(
+            "status IN ('active','cancelled','expired','confirmed')", name="status_allowed"
+        ),
+        Index(
+            "ix_booking_drafts_tenant_identity_status",
+            "tenant_id",
+            "customer_id",
+            "conversation_id",
+            "status",
+        ),
+        Index("ix_booking_drafts_active_expiry", "status", "expires_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    customer_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    conversation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    service_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    selected_date: Mapped[date | None] = mapped_column(Date)
+    hold_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    customer_name: Mapped[str | None] = mapped_column(String(200))
+    customer_phone: Mapped[str | None] = mapped_column(String(32))
+    customer_note: Mapped[str | None] = mapped_column(String(2000))
+    reschedule_booking_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class SlotHoldRow(Base):
+    __tablename__ = "slot_holds"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "customer_id"],
+            ["customers.tenant_id", "customers.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "conversation_id"],
+            ["conversations.tenant_id", "conversations.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "draft_id"],
+            ["booking_drafts.tenant_id", "booking_drafts.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "service_id"],
+            ["services.tenant_id", "services.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "resource_id"],
+            ["resources.tenant_id", "resources.id"],
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("tenant_id", "id"),
+        UniqueConstraint("tenant_id", "idempotency_key"),
+        CheckConstraint("start_at < end_at", name="time_order_valid"),
+        CheckConstraint(
+            "status IN ('active','released','expired','consumed')", name="status_allowed"
+        ),
+        Index(
+            "ix_slot_holds_tenant_resource_status_time",
+            "tenant_id",
+            "resource_id",
+            "status",
+            "start_at",
+            "end_at",
+        ),
+        Index("ix_slot_holds_active_expiry", "status", "expires_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    customer_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    conversation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    draft_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    service_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    resource_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    timezone: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
 class BookingRow(Base):
     __tablename__ = "bookings"
 
@@ -450,6 +664,9 @@ class BookingRow(Base):
     customer_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     service_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     resource_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    conversation_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    hold_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    public_reference: Mapped[str | None] = mapped_column(String(24))
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -469,6 +686,16 @@ class BookingRow(Base):
 
     __table_args__ = (
         ForeignKeyConstraint(
+            ["tenant_id", "conversation_id"],
+            ["conversations.tenant_id", "conversations.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "hold_id"],
+            ["slot_holds.tenant_id", "slot_holds.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
             ["tenant_id", "customer_id"],
             ["customers.tenant_id", "customers.id"],
             ondelete="RESTRICT",
@@ -484,6 +711,8 @@ class BookingRow(Base):
             ondelete="RESTRICT",
         ),
         UniqueConstraint("tenant_id", "id"),
+        UniqueConstraint("tenant_id", "public_reference"),
+        UniqueConstraint("tenant_id", "hold_id"),
         UniqueConstraint("tenant_id", "idempotency_scope", "idempotency_value"),
         CheckConstraint("start_at < end_at", name="time_order_valid"),
         CheckConstraint(

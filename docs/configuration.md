@@ -31,7 +31,7 @@ secrets do not belong in tenant configuration.
 | Controls | upload, retention, rate limits | environment defaults, then tenant policy |
 | Admin bootstrap | local operator token | local demo only |
 
-## Implemented groups through Phase 4
+## Implemented groups through Phase 5
 
 The loader validates application identity and public URL, PostgreSQL connectivity and bounded
 pool settings, internal API bind/timeout settings, tenant-bound API credentials, Telegram,
@@ -52,6 +52,12 @@ an enabled result policy requires its backend. Enabled OpenAI requires explicit 
 response models; enabled RAG additionally requires an embedding model and bounded dimensions.
 Upload, retention, rate, AI iteration/output, logging, and database limits are bounded at startup.
 Production rejects message-text logging and the local-only admin bootstrap token.
+
+Phase 5 booking policy is tenant-owned PostgreSQL data, not environment configuration. Northstar's
+fictional defaults are a 30-minute slot interval, 30-day horizon, two-hour minimum notice,
+five-minute hold, 30-minute draft expiry, and 24-hour cancellation/rescheduling cutoff. Customer
+name, phone, and optional-note lengths are also bounded in that record. Real deployments must
+replace and approve these values; `.env.example` does not duplicate them.
 
 The protected API requires `INTERNAL_API_ENABLED=true`, a non-empty `INTERNAL_API_KEY`, a UUID
 `INTERNAL_API_TENANT_ID`, and a supported `INTERNAL_API_ROLE`. The credential resolves exactly

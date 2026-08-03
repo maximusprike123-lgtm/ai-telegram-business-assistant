@@ -98,3 +98,12 @@ class TenantProfileResponse(BaseModel):
     business_hours: tuple[BusinessDayResponse, ...]
     status: BusinessStatusResponse
     next_opening: NextOpeningResponse
+
+
+class AvailabilitySlotResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    start_at: datetime
+    end_at: datetime
+    local_date: date
+    local_time: str
+    timezone: str

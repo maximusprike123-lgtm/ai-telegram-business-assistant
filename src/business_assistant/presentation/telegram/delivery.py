@@ -21,6 +21,7 @@ from .callbacks import SignedCallbackCodec
 from .models import RenderedMessage
 
 REPLY_MENU = (
+    ("Book appointment", "My appointment"),
     ("Services", "Business hours"),
     ("Privacy", "Human help"),
     ("Help", "Cancel"),

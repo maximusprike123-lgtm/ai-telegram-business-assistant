@@ -37,6 +37,7 @@ dev = [
 
 [project.scripts]
 business-assistant-telegram-polling = "business_assistant.bootstrap.telegram_polling:main"
+business-assistant-expire-holds = "business_assistant.bootstrap.expire_holds:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/business_assistant"]

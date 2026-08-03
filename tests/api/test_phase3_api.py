@@ -1,7 +1,17 @@
+from dataclasses import replace
+from datetime import timedelta
+
 from fastapi.testclient import TestClient
 from tests.helpers_phase3 import api_services, phase3_fixture
 
+from business_assistant.application.bookings import (
+    AvailabilityContext,
+    AvailableResource,
+    BookingApplication,
+    BookingPolicy,
+)
 from business_assistant.application.common.security import Principal, Role
+from business_assistant.domain.shared import ResourceId
 from business_assistant.presentation.http import create_phase3_app
 
 
@@ -86,3 +96,48 @@ def test_openapi_documents_versioned_endpoints_and_api_key_scheme() -> None:
         "/api/v1/next-opening",
     ):
         assert path in schema["paths"]
+
+
+def test_phase5_availability_endpoint_is_authenticated_and_tenant_derived() -> None:
+    uow, principal, clock, key = phase3_fixture()
+
+    class AvailabilityStore:
+        async def availability_context(self, tenant_id, service_id, *, now):
+            service = await uow.services.get_active(tenant_id, service_id)
+            assert service is not None
+            return AvailabilityContext(
+                tenant_id,
+                service_id,
+                "Exact service",
+                service.duration,
+                service.cleanup_buffer,
+                service.active,
+                service.bookable,
+                BookingPolicy(
+                    timedelta(minutes=30),
+                    timedelta(days=30),
+                    timedelta(hours=1),
+                    timedelta(minutes=5),
+                    timedelta(minutes=30),
+                    timedelta(hours=24),
+                    100,
+                    32,
+                    500,
+                ),
+                (AvailableResource(ResourceId.new(), uow.schedules.schedule, 1, True),),
+            )
+
+    base = api_services(uow, principal, clock, key)
+    services = replace(
+        base,
+        bookings=BookingApplication(AvailabilityStore(), clock),  # type: ignore[arg-type]
+    )
+    api = TestClient(create_phase3_app(services))
+    path = f"/api/v1/availability?service_id={uow.services.services[0].id}&local_date=2026-08-03"
+    unauthorized = api.get(path)
+    assert unauthorized.status_code == 401
+    response = api.get(path, headers={"X-Internal-API-Key": key})
+    assert response.status_code == 200
+    assert response.json()
+    assert response.json()[0]["timezone"] == "Europe/Moscow"
+    assert "/api/v1/availability" in api.get("/openapi.json").json()["paths"]

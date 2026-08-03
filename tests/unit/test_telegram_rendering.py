@@ -80,7 +80,7 @@ def test_callback_entity_shapes_are_enforced() -> None:
     with pytest.raises(CallbackTokenError, match="page is not allowed"):
         codec.decode(tenant, codec.encode(tenant, CallbackAction.HOME, page=1))
     with pytest.raises(ValueError, match="page"):
-        codec.encode(tenant, CallbackAction.CATALOG, page=1296)
+        codec.encode(tenant, CallbackAction.CATALOG, page=46_656)
 
 
 def sample_schedule() -> tuple[tuple[BusinessDayDTO, ...], BusinessStatusDTO, NextOpeningDTO]:
@@ -153,7 +153,7 @@ def test_renderer_escapes_customer_facing_values_and_builds_safe_navigation() ->
     detail = renderer.service(service)
     assert "Inspection &amp; test" in detail.text
     assert "Checks &lt;verified&gt; items." in detail.text
-    assert "later demo phase" in detail.text
+    assert "Book now" in detail.text
     assert "Next opening" in renderer.hours(days, status, opening).text
 
     categories = tuple(
@@ -179,7 +179,7 @@ def test_renderer_static_recovery_pages_are_deterministic_and_english_only() -> 
     assert all(0 < len(page.text) <= 4096 for page in pages)
     assert "does not store message bodies" in renderer.privacy().text
     assert "No request has been created" in renderer.human_placeholder().text
-    assert "AI, booking" in renderer.unknown().text
+    assert "AI and free-form" in renderer.unknown().text
 
 
 def test_renderer_splits_and_escapes_oversized_plain_text() -> None:

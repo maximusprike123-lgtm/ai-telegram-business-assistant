@@ -10,6 +10,7 @@ from aiogram.utils.token import TokenValidationError, extract_bot_id
 from fastapi import FastAPI, Request
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from business_assistant.application.bookings import BookingApplication
 from business_assistant.application.catalog import GetService, ListServiceCategories, ListServices
 from business_assistant.application.common.ports import Phase3UnitOfWork, Phase3UnitOfWorkFactory
 from business_assistant.application.common.security import Principal
@@ -24,6 +25,7 @@ from business_assistant.config import ConfigurationError, RuntimeSettings, load_
 from business_assistant.domain.shared import TenantId
 from business_assistant.infrastructure.observability import configure_logging
 from business_assistant.infrastructure.persistence import (
+    SQLAlchemyBookingStore,
     SQLAlchemyTelegramIdentityStore,
     SQLAlchemyTelegramUpdateStore,
     create_engine,
@@ -116,6 +118,7 @@ def build_phase4_components(settings: RuntimeSettings) -> Phase4Components:
             GetBusinessStatus(typed_factory, clock),
             GetNextOpening(typed_factory, clock),
             renderer,
+            BookingApplication(SQLAlchemyBookingStore(session_factory), clock),
         )
     )
     identity_store = SQLAlchemyTelegramIdentityStore(session_factory)
@@ -186,6 +189,7 @@ def _internal_api_app(
         GetBusinessStatus(uow_factory, clock),
         GetNextOpening(uow_factory, clock),
         StaticApiKeyAuthenticator(security.internal_api_key, principal),
+        BookingApplication(SQLAlchemyBookingStore(components.session_factory), clock),
     )
     return create_phase3_app(services)
 

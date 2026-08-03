@@ -109,6 +109,12 @@ class FakeNavigation:
     async def service(self, identity, service_id):
         return RenderedMessage(f"service:{service_id}")
 
+    async def cancel_flow(self, identity):
+        return RenderedMessage("no active workflow")
+
+    async def booking_text(self, identity, value):
+        return None
+
 
 class FakeDelivery:
     def __init__(self) -> None:
@@ -193,8 +199,8 @@ async def test_commands_unknown_text_and_duplicate_update_use_the_same_pipeline(
         (3, "/catalog", "catalog"),
         (4, "/hours", "hours"),
         (5, "/cancel", "no active workflow"),
-        (6, "/language", "AI, booking"),
-        (7, "unstructured question", "AI, booking"),
+        (6, "/language", "AI and free-form"),
+        (7, "unstructured question", "AI and free-form"),
         (8, "Privacy", "Privacy notice"),
         (9, "Human help", "No request has been created"),
     ):

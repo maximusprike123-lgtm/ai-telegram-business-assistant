@@ -1,4 +1,4 @@
-# Database runbook through Phase 4
+# Database runbook through Phase 5
 
 Phase 2 supports PostgreSQL only. Use a disposable database for tests; migration tests remove and
 recreate the application schema. The database role needs permission to create the `vector` and
@@ -24,6 +24,9 @@ alembic upgrade head
 Downgrade removes application tables but deliberately leaves shared PostgreSQL extensions.
 Revision `0003_phase4` adds the metadata-only Telegram update ledger. Its lifecycle and retention
 operation are documented in the [Phase 4 Telegram runbook](phase-4-telegram.md).
+Revision `0004_phase5` adds booking policy, service/resource eligibility, resource blackout,
+draft, and hold tables plus public-reference/identity links on bookings. It is reversible and
+validated from an empty database and through a downgrade/upgrade round trip.
 
 ## Seed the fictional demo
 
@@ -35,7 +38,8 @@ export APP_ENV=local
 python -m business_assistant.infrastructure.persistence.seed
 ```
 
-It creates the English-only tenant and public profile, one category, and the six services
+It creates the English-only tenant and public profile, one category, six services, two fictional
+one-capacity service bays, service-to-bay eligibility, and the fictional booking policy
 specified for Northstar. Prices/durations are clearly synthetic defaults and exercise exact,
 starting-from, and quote-based presentation. Weekdays have 08:00–12:00 and 13:00–18:00
 intervals, Saturday is 09:00–15:00, and Sunday is closed. Fixed overrides close 2027-01-01 and

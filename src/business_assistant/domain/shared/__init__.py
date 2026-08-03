@@ -9,6 +9,7 @@ from .errors import (
 from .events import DomainEvent
 from .identifiers import (
     AggregateId,
+    BookingDraftId,
     BookingId,
     CategoryId,
     ConversationId,
@@ -17,8 +18,10 @@ from .identifiers import (
     EntityId,
     HandoffId,
     LeadId,
+    ResourceId,
     ScheduleId,
     ServiceId,
+    SlotHoldId,
     TenantId,
 )
 from .value_objects import (
@@ -36,6 +39,7 @@ from .value_objects import (
 
 __all__ = [
     "AggregateId",
+    "BookingDraftId",
     "BookingId",
     "CategoryId",
     "Citation",
@@ -55,8 +59,10 @@ __all__ = [
     "PhoneNumber",
     "PriceMode",
     "PricePresentation",
+    "ResourceId",
     "ScheduleId",
     "ServiceId",
+    "SlotHoldId",
     "TenantId",
     "TenantMismatchError",
     "TimeRange",

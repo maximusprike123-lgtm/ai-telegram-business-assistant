@@ -5,6 +5,8 @@ import os
 from datetime import date, time, timedelta
 from uuid import UUID
 
+from sqlalchemy.dialects.postgresql import insert
+
 from business_assistant.domain.catalog import Service, ServiceCategory
 from business_assistant.domain.scheduling import (
     BusinessSchedule,
@@ -24,11 +26,16 @@ from business_assistant.domain.shared import (
 from business_assistant.domain.tenants import Tenant, TenantPublicProfile
 
 from .sqlalchemy.engine import create_engine, create_session_factory
+from .sqlalchemy.models import BookingPolicyRow, ResourceRow, ServiceResourceRow
 from .sqlalchemy.unit_of_work import SQLAlchemyUnitOfWork
 
 NORTHSTAR_TENANT_ID = TenantId(UUID("f73f5ad0-05c8-5bc6-a2c7-166b959fa73e"))
 NORTHSTAR_CATEGORY_ID = CategoryId(UUID("43ec952c-c4f4-5387-9cb9-cbe42dd16ef5"))
 NORTHSTAR_SCHEDULE_ID = ScheduleId(UUID("9419ac4d-a535-5f3b-99f0-f51f6a6e042a"))
+NORTHSTAR_RESOURCE_IDS = (
+    UUID("ad08e178-17a7-5512-8734-cb6aff4018d0"),
+    UUID("d1e30ca4-b9ba-59ca-8ae4-1962c6dc6eee"),
+)
 
 _SERVICE_IDS = {
     "oil-change": ServiceId(UUID("ec416e09-15a1-54a4-9553-01d97b1b83e4")),
@@ -182,6 +189,80 @@ async def seed_northstar(database_url: str, app_env: str) -> None:
             for service in northstar_services():
                 await uow.services.upsert(NORTHSTAR_TENANT_ID, service)
             await uow.commit()
+        async with factory() as session, session.begin():
+            await session.execute(
+                insert(BookingPolicyRow)
+                .values(
+                    tenant_id=NORTHSTAR_TENANT_ID.value,
+                    slot_interval_minutes=30,
+                    booking_horizon_days=30,
+                    minimum_notice_minutes=120,
+                    hold_duration_minutes=5,
+                    draft_expiry_minutes=30,
+                    change_cutoff_minutes=1440,
+                    customer_name_max_length=100,
+                    customer_phone_max_length=32,
+                    customer_note_max_length=500,
+                )
+                .on_conflict_do_update(
+                    index_elements=["tenant_id"],
+                    set_={
+                        "slot_interval_minutes": 30,
+                        "booking_horizon_days": 30,
+                        "minimum_notice_minutes": 120,
+                        "hold_duration_minutes": 5,
+                        "draft_expiry_minutes": 30,
+                        "change_cutoff_minutes": 1440,
+                        "customer_name_max_length": 100,
+                        "customer_phone_max_length": 32,
+                        "customer_note_max_length": 500,
+                    },
+                )
+            )
+            for resource_id in NORTHSTAR_RESOURCE_IDS:
+                await session.execute(
+                    insert(ResourceRow)
+                    .values(
+                        id=resource_id,
+                        tenant_id=NORTHSTAR_TENANT_ID.value,
+                        schedule_id=NORTHSTAR_SCHEDULE_ID.value,
+                        resource_type="service_bay",
+                        capacity=1,
+                        active=True,
+                    )
+                    .on_conflict_do_update(
+                        index_elements=["id"],
+                        set_={
+                            "schedule_id": NORTHSTAR_SCHEDULE_ID.value,
+                            "resource_type": "service_bay",
+                            "capacity": 1,
+                            "active": True,
+                        },
+                    )
+                )
+            for service_id in _SERVICE_IDS.values():
+                for resource_id in NORTHSTAR_RESOURCE_IDS:
+                    assignment_id = UUID(
+                        bytes=bytes(
+                            a ^ b
+                            for a, b in zip(service_id.value.bytes, resource_id.bytes, strict=True)
+                        )
+                    )
+                    await session.execute(
+                        insert(ServiceResourceRow)
+                        .values(
+                            id=assignment_id,
+                            tenant_id=NORTHSTAR_TENANT_ID.value,
+                            service_id=service_id.value,
+                            resource_id=resource_id,
+                            required_capacity=1,
+                            active=True,
+                        )
+                        .on_conflict_do_update(
+                            constraint="uq_service_resources_tenant_id_service_id_resource_id",
+                            set_={"required_capacity": 1, "active": True},
+                        )
+                    )
     finally:
         await engine.dispose()
 

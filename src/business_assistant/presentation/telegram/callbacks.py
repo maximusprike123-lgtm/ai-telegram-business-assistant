@@ -4,13 +4,17 @@ import base64
 import hashlib
 import hmac
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from enum import StrEnum
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from business_assistant.application.common.ports import Clock
 from business_assistant.domain.shared import TenantId
 
 MAX_CALLBACK_BYTES = 64
+MAX_CALLBACK_PAGE = 46_655
+BOOKING_DATE_EPOCH = date(2020, 1, 1)
 
 
 class CallbackAction(StrEnum):
@@ -22,6 +26,16 @@ class CallbackAction(StrEnum):
     PRIVACY = "pr"
     HUMAN = "hu"
     CANCEL = "cx"
+    BOOK = "bk"
+    BOOK_SERVICE = "bs"
+    BOOK_DATE = "bd"
+    BOOK_SLOT = "bt"
+    BOOK_CONFIRM = "bc"
+    FLOW_CANCEL = "fc"
+    MY_BOOKING = "mb"
+    APPOINTMENT_CANCEL = "ac"
+    APPOINTMENT_CANCEL_CONFIRM = "ax"
+    RESCHEDULE = "rs"
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +81,24 @@ def _decode_uuid(value: str) -> UUID:
         raise CallbackTokenError("Callback token has an invalid entity") from exc
 
 
+def booking_date_page(value: date) -> int:
+    page = (value - BOOKING_DATE_EPOCH).days
+    if not 0 <= page <= MAX_CALLBACK_PAGE:
+        raise ValueError("Booking date is outside the callback range")
+    return page
+
+
+def booking_date_from_page(page: int) -> date:
+    if not 0 <= page <= MAX_CALLBACK_PAGE:
+        raise CallbackTokenError("Booking date callback is out of range")
+    return BOOKING_DATE_EPOCH + timedelta(days=page)
+
+
+def booking_slot_page(start_at: datetime, timezone: str) -> int:
+    local = start_at.astimezone(ZoneInfo(timezone))
+    return local.hour * 60 + local.minute + (1440 if local.fold else 0)
+
+
 class SignedCallbackCodec:
     def __init__(
         self,
@@ -90,7 +122,7 @@ class SignedCallbackCodec:
         entity_id: UUID | None = None,
         page: int | None = None,
     ) -> str:
-        if page is not None and not 0 <= page <= 1295:
+        if page is not None and not 0 <= page <= MAX_CALLBACK_PAGE:
             raise ValueError("Callback page is out of range")
         expires = int(self._clock.now().timestamp()) + self._expiry_seconds
         entity = _encode_uuid(entity_id) if entity_id is not None else "-"
@@ -123,17 +155,31 @@ class SignedCallbackCodec:
             raise CallbackTokenError("Callback token has expired")
         entity_part, separator, page_text = entity_text.partition("~")
         page = _from_base36(page_text) if separator else None
-        if page is not None and not 0 <= page <= 1295:
+        if page is not None and not 0 <= page <= MAX_CALLBACK_PAGE:
             raise CallbackTokenError("Callback page is out of range")
         entity_id = None if entity_part == "-" else _decode_uuid(entity_part)
-        if action in {CallbackAction.CATEGORY, CallbackAction.SERVICE} and entity_id is None:
+        entity_actions = {
+            CallbackAction.CATEGORY,
+            CallbackAction.SERVICE,
+            CallbackAction.BOOK_SERVICE,
+            CallbackAction.BOOK_DATE,
+            CallbackAction.BOOK_SLOT,
+            CallbackAction.BOOK_CONFIRM,
+            CallbackAction.APPOINTMENT_CANCEL,
+            CallbackAction.APPOINTMENT_CANCEL_CONFIRM,
+            CallbackAction.RESCHEDULE,
+        }
+        if action in entity_actions and entity_id is None:
             raise CallbackTokenError("Callback entity is required")
-        if (
-            action not in {CallbackAction.CATEGORY, CallbackAction.SERVICE}
-            and entity_id is not None
-        ):
+        if action not in entity_actions and entity_id is not None:
             raise CallbackTokenError("Callback entity is not allowed")
-        if action not in {CallbackAction.CATALOG, CallbackAction.CATEGORY} and page is not None:
+        paged_actions = {
+            CallbackAction.CATALOG,
+            CallbackAction.CATEGORY,
+            CallbackAction.BOOK_DATE,
+            CallbackAction.BOOK_SLOT,
+        }
+        if action not in paged_actions and page is not None:
             raise CallbackTokenError("Callback page is not allowed")
         return CallbackToken(action, entity_id, page)
 

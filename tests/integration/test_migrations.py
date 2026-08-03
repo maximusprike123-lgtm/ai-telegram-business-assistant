@@ -50,6 +50,7 @@ async def test_schema_has_required_extensions_tables_and_constraints(
             "knowledge_chunks",
             "audit_events",
             "outbox_events",
+            "tenant_public_profiles",
         } <= tables
         assert exclusion == 1
     finally:

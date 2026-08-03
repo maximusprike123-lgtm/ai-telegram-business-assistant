@@ -14,23 +14,23 @@ not acceptance by itself.
 | FR-006 | 4 | Planned: deterministic Telegram commands |
 | FR-007 | 2, 4 | Message/update uniqueness and booking idempotency schema implemented; workflow planned |
 | FR-010 | 4 | Planned: deterministic routing and copy |
-| FR-011 | 3, 4 | Planned: canonical configuration/catalog lookup |
+| FR-011 | 3, 4 | Phase 3 deterministic profile/catalog lookup implemented; Telegram routing planned |
 | FR-012 | 8 | Planned: published tenant-scoped retrieval |
 | FR-013 | 7, 8 | Planned: evidence threshold and safe refusal |
 | FR-014 | 2, 8 | Citation value object and versioned knowledge lineage schema implemented; answer use planned |
 | FR-015 | 6, 7 | Planned: deterministic risk boundary and handoff |
-| FR-020 | 3, 4 | Planned: catalog query and Telegram pagination |
-| FR-021 | 3 | Phase 1 service fields implemented; deterministic query planned |
+| FR-020 | 3, 4 | Phase 3 localized catalog query implemented; Telegram pagination planned |
+| FR-021 | 3 | Implemented: localized service detail, duration, and public price query |
 | FR-022 | 1, 3 | Implemented: price presentation invariants and tests |
-| FR-023 | 1, 2, 3 | Active/bookable and snapshot invariants implemented; query enforcement planned |
+| FR-023 | 1, 2, 3 | Implemented: public queries enforce active service and category state |
 | FR-030 | 6 | Planned: versioned qualification schemas |
 | FR-031 | 6, 7 | Planned: extraction, validation, summary, missing fields |
 | FR-032 | 6 | Planned: correction workflow |
 | FR-033 | 1, 6 | Deterministic score boundary implemented; configured rules planned |
 | FR-034 | 1, 2, 6 | Lead fields/consent invariant and persistence mapping implemented; use cases planned |
 | FR-035 | 6, 10 | Planned: urgent rules and notifications |
-| FR-040 | 3, 5 | UTC-aware foundation implemented; local slot rendering planned |
-| FR-041 | 3, 5 | Schedule primitives implemented; availability engine planned |
+| FR-040 | 3, 5 | Tenant-local hours/status rendering implemented; appointment slots planned |
+| FR-041 | 3, 5 | Recurring/override hours engine implemented; resource availability planned |
 | FR-042 | 5 | Planned: durable short-lived slot holds |
 | FR-043 | 2, 5 | Idempotency value/object unique DB key implemented; atomic confirmation planned |
 | FR-044 | 5, 6 | Planned: configured data collection |
@@ -39,8 +39,8 @@ not acceptance by itself.
 | FR-047 | 1, 2, 5 | Lifecycle, history persistence, and overlap constraint implemented; use cases planned |
 | FR-048 | 5, 10 | Planned: post-commit outbox notifications |
 | FR-049 | 5, 10 | Planned: hold expiry and cleanup worker |
-| FR-050 | 3 | Schedule validation implemented; open/next-open calculation planned |
-| FR-051 | 3, 4 | Planned: outside-hours deterministic response |
+| FR-050 | 3 | Implemented: override precedence, current status, bounded next-open calculation |
+| FR-051 | 3, 4 | Phase 3 outside-hours facts implemented; Telegram response planned |
 | FR-052 | 3, 6 | Handoff due-time field implemented; next-open policy planned |
 | FR-060 | 4, 9 | Active workflow field implemented; durable memory planned |
 | FR-061 | 9 | Planned: facts with provenance/confidence/sensitivity |
@@ -57,8 +57,8 @@ not acceptance by itself.
 | FR-076 | 2, 6, 10 | Durable audit schema implemented; takeover emission planned |
 | FR-080 | 10 | Planned: notification subscriptions |
 | FR-081 | 10, 11 | PII-minimization ADR accepted; payload implementation planned |
-| FR-082 | 3, 6, 8, 10 | Planned: protected internal administration APIs |
-| FR-083 | 3, 6, 8, 11 | Planned: authentication, authorization, validation, audit |
+| FR-082 | 3, 6, 8, 10 | Phase 3 protected read-only profile/catalog/schedule API; admin APIs planned |
+| FR-083 | 3, 6, 8, 11 | Phase 3 tenant-bound auth/RBAC/input validation; audit/full IdP planned |
 | FR-084 | 1, 2, 8 | Knowledge lifecycle/status persistence and chunk schema implemented; ingestion planned |
 | FR-090 | 10 | Domain event envelope implemented; analytics catalog/projection planned |
 | FR-091 | 10, 11 | Tenant event context implemented; safe dimensions planned |
@@ -70,9 +70,9 @@ not acceptance by itself.
 |---|---|---:|
 | Clean Architecture (6.4, 7.2) | Architecture import tests and ADR 0002 | Every phase |
 | Tenant isolation (3.3) | Tenant-filtered repositories, composite FKs, integration tests | Every phase |
-| UTC/IANA time (6.4, 8.2) | Aware domain values and timezone-preserving PostgreSQL mappings | 3, 5 |
+| UTC/IANA time (6.4, 8.2) | Phase 3 tenant-local schedule engine, DST policy, aware API inputs | 5 slots |
 | PostgreSQL/pgvector (7.3, 9) | Async adapter, initial migration, extensions, vector/full-text columns | 8 retrieval |
 | Transactional outbox (7.3) | Tenant-scoped durable schema in same database | 10 delivery |
 | Privacy/logging (15, 17) | ADR 0004, environment policy, secret scan | 9, 11 |
-| CI quality baseline (21, 22) | Ruff, mypy, tests/coverage, build, secret scan | Expanded each phase |
+| CI quality baseline (21, 22) | Ruff, mypy, API/unit/PostgreSQL tests, coverage, build, secret scan | Expanded each phase |
 | Docker/runtime (19) | Explicitly deferred | 12 |

@@ -1,3 +1,4 @@
 from .model import Tenant, TenantStatus
+from .profile import TenantPublicProfile
 
-__all__ = ["Tenant", "TenantStatus"]
+__all__ = ["Tenant", "TenantPublicProfile", "TenantStatus"]

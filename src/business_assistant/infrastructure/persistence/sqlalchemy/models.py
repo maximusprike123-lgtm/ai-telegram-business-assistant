@@ -294,6 +294,39 @@ class BusinessScheduleRow(Base):
     )
 
 
+class TenantPublicProfileRow(Base):
+    __tablename__ = "tenant_public_profiles"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "schedule_id"],
+            ["business_schedules.tenant_id", "business_schedules.id"],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("version >= 1", name="version_positive"),
+        Index("ix_tenant_public_profiles_tenant_schedule", "tenant_id", "schedule_id"),
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), primary_key=True
+    )
+    schedule_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    descriptions: Mapped[dict[str, str]] = mapped_column(JSONB, nullable=False)
+    public_phone: Mapped[str | None] = mapped_column(String(32))
+    public_email: Mapped[str | None] = mapped_column(String(254))
+    website_url: Mapped[str | None] = mapped_column(String(500))
+    addresses: Mapped[dict[str, str]] = mapped_column(JSONB, nullable=False, default=dict)
+    service_areas: Mapped[dict[str, str]] = mapped_column(JSONB, nullable=False, default=dict)
+    parking_guidance: Mapped[dict[str, str]] = mapped_column(JSONB, nullable=False, default=dict)
+    payment_methods: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    warranty_policy: Mapped[dict[str, str]] = mapped_column(JSONB, nullable=False, default=dict)
+    appointment_policy: Mapped[dict[str, str]] = mapped_column(JSONB, nullable=False, default=dict)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
+
+
 class ScheduleIntervalRow(Base):
     __tablename__ = "schedule_intervals"
     __table_args__ = (

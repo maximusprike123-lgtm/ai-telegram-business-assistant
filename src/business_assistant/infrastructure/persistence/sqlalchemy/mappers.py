@@ -34,7 +34,7 @@ from business_assistant.domain.shared import (
     TenantId,
     TimeRange,
 )
-from business_assistant.domain.tenants import Tenant, TenantStatus
+from business_assistant.domain.tenants import Tenant, TenantPublicProfile, TenantStatus
 
 from .models import (
     BookingRow,
@@ -48,6 +48,7 @@ from .models import (
     ScheduleOverrideRow,
     ServiceCategoryRow,
     ServiceRow,
+    TenantPublicProfileRow,
     TenantRow,
 )
 
@@ -75,6 +76,50 @@ def tenant_from_row(row: TenantRow) -> Tenant:
         supported_locales=frozenset(Locale(item) for item in row.supported_locales),
         status=TenantStatus(row.status),
         settings_version=row.settings_version,
+    )
+
+
+def _localized_to_json(values: dict[Locale, str]) -> dict[str, str]:
+    return {key.value: value for key, value in values.items()}
+
+
+def _localized_from_json(values: dict[str, str]) -> dict[Locale, str]:
+    return {Locale(key): value for key, value in values.items()}
+
+
+def public_profile_to_row(entity: TenantPublicProfile) -> TenantPublicProfileRow:
+    return TenantPublicProfileRow(
+        tenant_id=entity.tenant_id.value,
+        schedule_id=entity.schedule_id.value,
+        descriptions=_localized_to_json(entity.descriptions),
+        public_phone=entity.public_phone,
+        public_email=entity.public_email,
+        website_url=entity.website_url,
+        addresses=_localized_to_json(entity.addresses),
+        service_areas=_localized_to_json(entity.service_areas),
+        parking_guidance=_localized_to_json(entity.parking_guidance),
+        payment_methods=list(entity.payment_methods),
+        warranty_policy=_localized_to_json(entity.warranty_policy),
+        appointment_policy=_localized_to_json(entity.appointment_policy),
+        version=entity.version,
+    )
+
+
+def public_profile_from_row(row: TenantPublicProfileRow) -> TenantPublicProfile:
+    return TenantPublicProfile(
+        tenant_id=TenantId(row.tenant_id),
+        schedule_id=ScheduleId(row.schedule_id),
+        descriptions=_localized_from_json(row.descriptions),
+        public_phone=row.public_phone,
+        public_email=row.public_email,
+        website_url=row.website_url,
+        addresses=_localized_from_json(row.addresses),
+        service_areas=_localized_from_json(row.service_areas),
+        parking_guidance=_localized_from_json(row.parking_guidance),
+        payment_methods=tuple(row.payment_methods),
+        warranty_policy=_localized_from_json(row.warranty_policy),
+        appointment_policy=_localized_from_json(row.appointment_policy),
+        version=row.version,
     )
 
 

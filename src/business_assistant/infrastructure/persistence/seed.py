@@ -2,11 +2,15 @@
 
 import asyncio
 import os
-from datetime import time, timedelta
+from datetime import date, time, timedelta
 from uuid import UUID
 
 from business_assistant.domain.catalog import Service, ServiceCategory
-from business_assistant.domain.scheduling import BusinessSchedule, ScheduleInterval
+from business_assistant.domain.scheduling import (
+    BusinessSchedule,
+    ScheduleInterval,
+    ScheduleOverride,
+)
 from business_assistant.domain.shared import (
     CategoryId,
     Locale,
@@ -17,7 +21,7 @@ from business_assistant.domain.shared import (
     ServiceId,
     TenantId,
 )
-from business_assistant.domain.tenants import Tenant
+from business_assistant.domain.tenants import Tenant, TenantPublicProfile
 
 from .sqlalchemy.engine import create_engine, create_session_factory
 from .sqlalchemy.unit_of_work import SQLAlchemyUnitOfWork
@@ -41,12 +45,12 @@ def _service(
     english_name: str,
     russian_name: str,
     duration_minutes: int,
+    price_mode: PriceMode,
     starting_price_minor: int | None,
 ) -> Service:
-    price = (
-        PricePresentation(PriceMode.STARTING_FROM, Money(starting_price_minor, "RUB"))
-        if starting_price_minor is not None
-        else PricePresentation(PriceMode.QUOTE_REQUIRED)
+    price = PricePresentation(
+        price_mode,
+        Money(starting_price_minor, "RUB") if starting_price_minor is not None else None,
     )
     return Service(
         id=_SERVICE_IDS[code],
@@ -71,12 +75,40 @@ def _service(
 def northstar_services() -> tuple[Service, ...]:
     # Demo-only durations/prices are synthetic defaults, not real offers or universal policy.
     return (
-        _service("oil-change", "Oil change", "Замена масла", 45, 450_000),
-        _service("brake-inspection", "Brake inspection", "Осмотр тормозов", 60, 300_000),
-        _service("engine-diagnostics", "Engine diagnostics", "Диагностика двигателя", 90, 500_000),
-        _service("tire-service", "Tire service", "Шиномонтаж", 60, 400_000),
-        _service("battery-replacement", "Battery replacement", "Замена аккумулятора", 45, None),
-        _service("suspension-inspection", "Suspension inspection", "Осмотр подвески", 60, 350_000),
+        _service("oil-change", "Oil change", "Замена масла", 45, PriceMode.EXACT, 450_000),
+        _service(
+            "brake-inspection",
+            "Brake inspection",
+            "Осмотр тормозов",
+            60,
+            PriceMode.STARTING_FROM,
+            300_000,
+        ),
+        _service(
+            "engine-diagnostics",
+            "Engine diagnostics",
+            "Диагностика двигателя",
+            90,
+            PriceMode.STARTING_FROM,
+            500_000,
+        ),
+        _service("tire-service", "Tire service", "Шиномонтаж", 60, PriceMode.EXACT, 400_000),
+        _service(
+            "battery-replacement",
+            "Battery replacement",
+            "Замена аккумулятора",
+            45,
+            PriceMode.QUOTE_REQUIRED,
+            None,
+        ),
+        _service(
+            "suspension-inspection",
+            "Suspension inspection",
+            "Осмотр подвески",
+            60,
+            PriceMode.STARTING_FROM,
+            350_000,
+        ),
     )
 
 
@@ -108,21 +140,65 @@ async def seed_northstar(database_url: str, app_env: str) -> None:
                         {Locale.EN: "Auto care", Locale.RU: "Автосервис"},
                     ),
                 )
-            if await uow.schedules.get(NORTHSTAR_TENANT_ID, NORTHSTAR_SCHEDULE_ID) is None:
-                intervals = (
-                    *(ScheduleInterval(weekday, time(8), time(18)) for weekday in range(5)),
-                    ScheduleInterval(5, time(9), time(15)),
-                )
-                await uow.schedules.add(
+            intervals = (
+                *(ScheduleInterval(day, time(8), time(12)) for day in range(5)),
+                *(ScheduleInterval(day, time(13), time(18)) for day in range(5)),
+                ScheduleInterval(5, time(9), time(15)),
+            )
+            overrides = (
+                ScheduleOverride(date(2027, 1, 1), date(2027, 1, 1), True, reason="Demo holiday"),
+                ScheduleOverride(
+                    date(2027, 1, 3),
+                    date(2027, 1, 3),
+                    False,
+                    (ScheduleInterval(6, time(10), time(14)),),
+                    "Demo special opening",
+                ),
+            )
+            await uow.schedules.replace(
+                NORTHSTAR_TENANT_ID,
+                BusinessSchedule(
+                    NORTHSTAR_SCHEDULE_ID,
                     NORTHSTAR_TENANT_ID,
-                    BusinessSchedule(
-                        NORTHSTAR_SCHEDULE_ID,
-                        NORTHSTAR_TENANT_ID,
-                        "Workshop hours",
-                        "Europe/Moscow",
-                        intervals,
-                    ),
-                )
+                    "Workshop hours",
+                    "Europe/Moscow",
+                    intervals,
+                    overrides,
+                ),
+            )
+            await uow.public_profiles.upsert(
+                NORTHSTAR_TENANT_ID,
+                TenantPublicProfile(
+                    tenant_id=NORTHSTAR_TENANT_ID,
+                    schedule_id=NORTHSTAR_SCHEDULE_ID,
+                    descriptions={
+                        Locale.EN: "Fictional auto-care workshop for the portfolio demonstration.",
+                        Locale.RU: "Вымышленный автосервис для демонстрации портфолио.",
+                    },
+                    public_phone="+1 555 010 0200",
+                    public_email="hello@northstar.example",
+                    website_url="https://northstar.example",
+                    addresses={
+                        Locale.EN: "18 Harbor Road",
+                        Locale.RU: "Харбор-роуд, 18",  # noqa: RUF001
+                    },
+                    parking_guidance={
+                        Locale.EN: "Customer parking is beside the workshop entrance.",
+                        Locale.RU: (
+                            "Парковка для клиентов находится у входа в мастерскую."  # noqa: RUF001
+                        ),
+                    },
+                    payment_methods=("cash", "card"),
+                    warranty_policy={
+                        Locale.EN: "Warranty terms depend on the approved service and parts.",
+                        Locale.RU: "Условия гарантии зависят от согласованных работ и деталей.",
+                    },
+                    appointment_policy={
+                        Locale.EN: "Appointments require workshop confirmation.",
+                        Locale.RU: "Запись требует подтверждения мастерской.",
+                    },
+                ),
+            )
             for service in northstar_services():
                 if await uow.services.get(NORTHSTAR_TENANT_ID, service.id) is None:
                     await uow.services.add(NORTHSTAR_TENANT_ID, service)

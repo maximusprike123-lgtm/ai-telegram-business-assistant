@@ -17,6 +17,7 @@ from .repositories import (
     HandoffRepository,
     KnowledgeRepository,
     LeadRepository,
+    PublicProfileRepository,
     ScheduleRepository,
     ServiceRepository,
     TenantRepository,
@@ -33,6 +34,7 @@ class SQLAlchemyUnitOfWork:
         self._session = self._session_factory()
         await self._session.begin()
         self.tenants = TenantRepository(self._session)
+        self.public_profiles = PublicProfileRepository(self._session)
         self.customers = CustomerRepository(self._session)
         self.conversations = ConversationRepository(self._session)
         self.categories = CategoryRepository(self._session)

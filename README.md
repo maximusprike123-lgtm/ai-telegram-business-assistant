@@ -11,7 +11,9 @@ knowledge answers, lead qualification, booking, and human handoff.
 - Phase 0: repository and architecture-decision baseline
 - Phase 1: framework-independent domain foundation
 - Phase 2: PostgreSQL persistence, migrations, repositories, and fictional demo seed
-- Phases 3–13: not implemented
+- Phase 3: validated runtime configuration, public business profile, localized catalog,
+  deterministic business-hours engine, and protected internal HTTP API
+- Phases 4–13: not implemented
 
 The current code is deliberately not a chatbot. Consequential operations belong to validated
 application and domain workflows; future AI output remains advisory until it passes structured,
@@ -86,6 +88,8 @@ Detailed setup, lock updates, and CI-equivalent commands are in
 
 Database migration and fictional demo seed commands are documented in the
 [Phase 2 database runbook](docs/operations/database.md).
+The protected read-only API and Northstar examples are in the
+[Phase 3 API runbook](docs/operations/phase-3-api.md).
 
 ## Repository layout
 
@@ -94,11 +98,12 @@ src/business_assistant/
 ├── domain/          # Pure entities, policies, events, and value objects
 ├── application/     # Use-case boundaries and inward-facing ports
 ├── infrastructure/  # Async PostgreSQL repositories, mappings, UoW, and demo seed
-├── presentation/    # Telegram/HTTP adapters; currently a phase marker only
-├── bootstrap/       # Future composition root
-└── config/          # Future validated runtime settings boundary
+├── presentation/    # Explicit FastAPI schemas and thin internal HTTP adapter
+├── bootstrap/       # Phase 3 composition root
+└── config/          # Immutable, validated runtime settings
 tests/
 ├── unit/
+├── api/
 ├── architecture/
 └── integration/     # Real PostgreSQL migration/repository/constraint tests
 migrations/          # Static Alembic revisions
@@ -110,6 +115,8 @@ docs/
 
 - [Full requirements traceability](docs/requirements-traceability.md)
 - [Phase 1 traceability](docs/phase-1-traceability.md)
+- [Phase 2 traceability](docs/phase-2-traceability.md)
+- [Phase 3 traceability](docs/phase-3-traceability.md)
 
 The implementation specification remains the source of truth. Documentation in this repository
 records decisions and implementation status; it does not replace the specification.

@@ -6,7 +6,11 @@ from business_assistant.infrastructure.persistence.seed import (
     NORTHSTAR_TENANT_ID,
     seed_northstar,
 )
-from business_assistant.infrastructure.persistence.sqlalchemy.models import ServiceRow
+from business_assistant.infrastructure.persistence.sqlalchemy.models import (
+    ScheduleOverrideRow,
+    ServiceRow,
+    TenantPublicProfileRow,
+)
 from business_assistant.infrastructure.persistence.sqlalchemy.unit_of_work import (
     SQLAlchemyUnitOfWork,
 )
@@ -31,6 +35,10 @@ async def test_northstar_seed_is_complete_and_idempotent(
             .select_from(ServiceRow)
             .where(ServiceRow.tenant_id == NORTHSTAR_TENANT_ID.value)
         )
+        profile_count = await session.scalar(
+            select(func.count()).select_from(TenantPublicProfileRow)
+        )
+        override_count = await session.scalar(select(func.count()).select_from(ScheduleOverrideRow))
     assert tenant is not None
     assert "fictional demo" in tenant.name
     assert {service.code for service in services} == {
@@ -42,6 +50,13 @@ async def test_northstar_seed_is_complete_and_idempotent(
         "suspension-inspection",
     }
     assert count == 6
+    assert profile_count == 1
+    assert override_count == 2
+    assert {service.price.mode.value for service in services} == {
+        "exact",
+        "starting_from",
+        "quote_required",
+    }
 
 
 @pytest.mark.asyncio

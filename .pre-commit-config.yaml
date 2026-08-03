@@ -31,7 +31,7 @@ repos:
         types: [python]
 
       - id: tests
-        name: full test suite (requires TEST_DATABASE_URL for Phase 2 integration)
+        name: full test suite (requires TEST_DATABASE_URL for PostgreSQL integration)
         entry: pytest
         language: system
         pass_filenames: false

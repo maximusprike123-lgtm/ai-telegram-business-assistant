@@ -34,7 +34,7 @@ from business_assistant.domain.shared import (
     TenantId,
     TenantMismatchError,
 )
-from business_assistant.domain.tenants import Tenant
+from business_assistant.domain.tenants import Tenant, TenantPublicProfile
 
 from .base import Base
 from .mappers import (
@@ -52,6 +52,8 @@ from .mappers import (
     knowledge_to_row,
     lead_from_row,
     lead_to_row,
+    public_profile_from_row,
+    public_profile_to_row,
     schedule_from_rows,
     schedule_to_rows,
     service_from_row,
@@ -72,6 +74,7 @@ from .models import (
     ScheduleOverrideRow,
     ServiceCategoryRow,
     ServiceRow,
+    TenantPublicProfileRow,
     TenantRow,
 )
 
@@ -193,10 +196,112 @@ class CategoryRepository(SQLAlchemyRepository[ServiceCategory, CategoryId, Servi
             session, ServiceCategoryRow, category_to_row, category_from_row, "ServiceCategory"
         )
 
+    async def list_active(self, tenant_id: TenantId) -> Sequence[ServiceCategory]:
+        rows = (
+            await self._session.scalars(
+                select(ServiceCategoryRow)
+                .where(
+                    ServiceCategoryRow.tenant_id == tenant_id.value,
+                    ServiceCategoryRow.active.is_(True),
+                )
+                .order_by(ServiceCategoryRow.sort_order, ServiceCategoryRow.id)
+            )
+        ).all()
+        return [category_from_row(row) for row in rows]
+
+    async def get_active(
+        self, tenant_id: TenantId, category_id: CategoryId
+    ) -> ServiceCategory | None:
+        row = await self._session.scalar(
+            select(ServiceCategoryRow).where(
+                ServiceCategoryRow.tenant_id == tenant_id.value,
+                ServiceCategoryRow.id == category_id.value,
+                ServiceCategoryRow.active.is_(True),
+            )
+        )
+        return category_from_row(row) if row is not None else None
+
 
 class ServiceRepository(SQLAlchemyRepository[Service, ServiceId, ServiceRow]):
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, ServiceRow, service_to_row, service_from_row, "Service")
+
+    async def list_active(
+        self, tenant_id: TenantId, *, category_id: CategoryId | None
+    ) -> Sequence[Service]:
+        statement = (
+            select(ServiceRow)
+            .join(
+                ServiceCategoryRow,
+                (ServiceCategoryRow.tenant_id == ServiceRow.tenant_id)
+                & (ServiceCategoryRow.id == ServiceRow.category_id),
+            )
+            .where(
+                ServiceRow.tenant_id == tenant_id.value,
+                ServiceRow.active.is_(True),
+                ServiceCategoryRow.active.is_(True),
+            )
+        )
+        if category_id is not None:
+            statement = statement.where(ServiceRow.category_id == category_id.value)
+        rows = (
+            await self._session.scalars(statement.order_by(ServiceRow.code, ServiceRow.id))
+        ).all()
+        return [service_from_row(row) for row in rows]
+
+    async def get_active(self, tenant_id: TenantId, service_id: ServiceId) -> Service | None:
+        row = await self._session.scalar(
+            select(ServiceRow)
+            .join(
+                ServiceCategoryRow,
+                (ServiceCategoryRow.tenant_id == ServiceRow.tenant_id)
+                & (ServiceCategoryRow.id == ServiceRow.category_id),
+            )
+            .where(
+                ServiceRow.tenant_id == tenant_id.value,
+                ServiceRow.id == service_id.value,
+                ServiceRow.active.is_(True),
+                ServiceCategoryRow.active.is_(True),
+            )
+        )
+        return service_from_row(row) if row is not None else None
+
+
+class PublicProfileRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get(self, tenant_id: TenantId) -> TenantPublicProfile | None:
+        row = await self._session.scalar(
+            select(TenantPublicProfileRow).where(
+                TenantPublicProfileRow.tenant_id == tenant_id.value
+            )
+        )
+        return public_profile_from_row(row) if row is not None else None
+
+    async def upsert(self, tenant_id: TenantId, entity: TenantPublicProfile) -> None:
+        if entity.tenant_id != tenant_id:
+            raise TenantMismatchError("TenantPublicProfile")
+        row = await self._session.get(TenantPublicProfileRow, tenant_id.value)
+        replacement = public_profile_to_row(entity)
+        if row is None:
+            self._session.add(replacement)
+        else:
+            for attribute in (
+                "schedule_id",
+                "descriptions",
+                "public_phone",
+                "public_email",
+                "website_url",
+                "addresses",
+                "service_areas",
+                "parking_guidance",
+                "payment_methods",
+                "warranty_policy",
+                "appointment_policy",
+            ):
+                setattr(row, attribute, getattr(replacement, attribute))
+        await _flush(self._session, "TenantPublicProfile")
 
 
 class LeadRepository(SQLAlchemyRepository[Lead, LeadId, LeadRow]):

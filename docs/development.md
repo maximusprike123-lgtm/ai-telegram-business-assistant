@@ -4,8 +4,9 @@
 
 - Python 3.12 or newer; CI verifies Python 3.12 and 3.13.
 - Git.
-- PostgreSQL 18 with pgvector and `btree_gist` is required for the Phase 2 integration gate.
-- Redis, Telegram, FastAPI, Celery, and OpenAI are not used in Phase 2.
+- PostgreSQL 18 with pgvector and `btree_gist` is required for the integration gate.
+- FastAPI is used only for the protected Phase 3 internal adapter. Redis, Telegram, Celery, and
+  OpenAI remain disabled and are not required for tests or local catalog/schedule queries.
 
 ## First setup
 
@@ -41,6 +42,22 @@ The database user must be able to create the `vector` and `btree_gist` extension
 `pytest` enforces at least 85% overall coverage through `pyproject.toml`. Domain and application
 coverage should remain higher where business consequences are involved. Do not lower a gate to
 make a change pass.
+
+Focused Phase 3 checks can be run with:
+
+```bash
+pytest tests/unit/test_configuration.py tests/unit/test_phase3_queries.py \
+  tests/unit/test_schedule_engine.py tests/api
+pytest -m postgresql
+```
+
+OpenAPI generation is covered by the API tests. To run the fictional demo API, migrate and seed a
+local database, set the four `INTERNAL_API_*` variables described in the
+[API runbook](operations/phase-3-api.md), and start:
+
+```bash
+uvicorn business_assistant.bootstrap.phase3:create_app_from_environment --factory
+```
 
 ## Git hooks
 

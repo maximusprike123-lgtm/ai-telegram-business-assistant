@@ -1,0 +1,69 @@
+"""Phase 3 composition root; configuration is loaded only here."""
+
+from typing import cast
+
+from fastapi import FastAPI
+
+from business_assistant.application.catalog import GetService, ListServiceCategories, ListServices
+from business_assistant.application.common.ports import Phase3UnitOfWork, Phase3UnitOfWorkFactory
+from business_assistant.application.common.security import Principal
+from business_assistant.application.scheduling import (
+    GetBusinessHours,
+    GetBusinessStatus,
+    GetNextOpening,
+)
+from business_assistant.application.tenants import GetTenantPublicProfile
+from business_assistant.config import ConfigurationError, RuntimeSettings, load_settings
+from business_assistant.infrastructure.persistence import create_engine, create_session_factory
+from business_assistant.infrastructure.persistence.sqlalchemy.unit_of_work import (
+    SQLAlchemyUnitOfWork,
+)
+from business_assistant.infrastructure.security import StaticApiKeyAuthenticator
+from business_assistant.infrastructure.system import UTCClock
+from business_assistant.presentation.http import Phase3ApiServices, create_phase3_app
+
+
+def build_phase3_app(settings: RuntimeSettings) -> FastAPI:
+    if not settings.api.enabled:
+        raise ConfigurationError("INTERNAL_API_ENABLED", "must be enabled to build the HTTP API")
+    security = settings.security
+    if (
+        security.internal_api_key is None
+        or security.internal_api_tenant_id is None
+        or security.internal_api_role is None
+    ):
+        raise ConfigurationError("INTERNAL_API_KEY", "API security context is incomplete")
+    database = settings.database
+    engine = create_engine(
+        database.url,
+        pool_size=database.pool_size,
+        max_overflow=database.max_overflow,
+        connect_timeout_seconds=database.connect_timeout_seconds,
+    )
+    session_factory = create_session_factory(engine)
+
+    def uow_factory() -> Phase3UnitOfWork:
+        return cast(Phase3UnitOfWork, SQLAlchemyUnitOfWork(session_factory))
+
+    typed_factory: Phase3UnitOfWorkFactory = uow_factory
+    clock = UTCClock()
+    principal = Principal(
+        "static-internal-operator", security.internal_api_tenant_id, security.internal_api_role
+    )
+    services = Phase3ApiServices(
+        profile=GetTenantPublicProfile(typed_factory, clock),
+        categories=ListServiceCategories(typed_factory),
+        services=ListServices(typed_factory),
+        service=GetService(typed_factory),
+        hours=GetBusinessHours(typed_factory),
+        status=GetBusinessStatus(typed_factory, clock),
+        next_opening=GetNextOpening(typed_factory, clock),
+        authenticator=StaticApiKeyAuthenticator(security.internal_api_key, principal),
+    )
+    app = create_phase3_app(services)
+    app.router.add_event_handler("shutdown", engine.dispose)
+    return app
+
+
+def create_app_from_environment() -> FastAPI:
+    return build_phase3_app(load_settings())

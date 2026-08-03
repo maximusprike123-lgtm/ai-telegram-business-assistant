@@ -1,8 +1,9 @@
 # Environment and configuration baseline
 
-`.env.example` is a safe inventory, not a committed runtime configuration. Phase 2 Alembic and
-seed commands read `DATABASE_URL`; integration tests read `TEST_DATABASE_URL`. The future
-application startup configuration loader remains Phase 3 work.
+`.env.example` is a safe inventory, not a committed runtime configuration. Phase 3 loads an
+immutable `RuntimeSettings` object once at the composition boundary. Domain entities and
+application use cases never read process environment variables. Phase 2 Alembic and seed commands
+read `DATABASE_URL`; integration tests read `TEST_DATABASE_URL`.
 
 ## Configuration layers
 
@@ -30,19 +31,47 @@ secrets do not belong in tenant configuration.
 | Controls | upload, retention, rate limits | environment defaults, then tenant policy |
 | Admin bootstrap | local operator token | local demo only |
 
-## Phase 2 database variables
+## Phase 3 implemented groups
+
+The loader validates application identity and public URL, PostgreSQL connectivity and bounded
+pool settings, internal API bind/timeout settings, tenant-bound API credentials, Telegram,
+Redis, Celery and OpenAI enablement, observability, and feature switches. An integration's
+credential or URL is required only when that integration is enabled. Phase 3 keeps Telegram,
+Redis, Celery, OpenAI, RAG, and automatic handoff disabled.
+
+Signing/encryption/metrics/admin secrets are optional until their owning feature is used but are
+still checked for production strength when supplied. Celery results have an independent switch;
+an enabled result policy requires its backend. Enabled OpenAI requires explicit router and
+response models; enabled RAG additionally requires an embedding model and bounded dimensions.
+Upload, retention, rate, AI iteration/output, logging, and database limits are bounded at startup.
+Production rejects message-text logging and the local-only admin bootstrap token.
+
+The protected API requires `INTERNAL_API_ENABLED=true`, a non-empty `INTERNAL_API_KEY`, a UUID
+`INTERNAL_API_TENANT_ID`, and a supported `INTERNAL_API_ROLE`. The credential resolves exactly
+one trusted principal and tenant; `X-Tenant-ID`, when sent as a defense-in-depth assertion, must
+match that tenant. This static adapter is intentionally replaceable and is not a user directory,
+OAuth server, key rotation system, or complete SaaS identity provider.
+
+Supported Phase 3 roles are `owner`, `manager`, `agent`, `viewer`, and `knowledge_editor`.
+Owner/manager/agent/viewer can read profile, catalog, and schedules. `knowledge_editor` has no
+Phase 3 read grant, making authorization tests meaningful without introducing later admin flows.
+
+## Database variables
 
 Both database variables must use `postgresql+asyncpg://`; SQLite is rejected. `APP_ENV` must be
-`local`, `development`, or `test` for the fictional Northstar seed. Pool settings are inventoried
-for the later composition root and are not silently consumed by migration commands.
+`local`, `development`, or `test` for the fictional Northstar seed. The Phase 3 composition root
+applies bounded pool size, overflow, and connection timeout values. Migration commands continue
+to own their connection separately.
 
-## Validation policy for later phases
+## Validation policy
 
-The future configuration adapter must fail startup safely when required values are absent or
-incompatible. It must validate environment names, URL schemes, production secret strength,
-IANA timezone and locale support, positive limits, polling disabled outside local development,
-and model/embedding dimension compatibility. Errors must name the setting without echoing its
-secret value.
+Startup fails safely for invalid environment names, schemes/hosts/ports, production HTTP,
+weak production credentials, non-IANA timezones, unsupported locales, inconsistent feature
+switches, bad roles, and out-of-range numeric settings. Telegram polling is rejected in
+production. Errors name the setting and a safe reason without echoing its value. Later phases
+will add provider-specific model/dimension compatibility checks when the Phase 7 AI adapter owns
+a versioned model catalog; Phase 3 already requires and bounds embedding dimensions when RAG is
+enabled.
 
 ## Secret handling
 
@@ -50,8 +79,9 @@ secret value.
 - Keep staging/production values in the deployment platform's secret manager.
 - Never reuse secrets across environments or store them in tenant records, logs, fixtures, CI
   output, screenshots, or model prompts.
-- Empty secret values and `change-me` database credentials in `.env.example` are deliberate safe
-  placeholders and must never be used as production credentials.
+- Empty secret values in `.env.example` are deliberate safe placeholders and must never be used
+  as production credentials. The Northstar tenant UUID is public fictional seed identity, not a
+  credential.
 - Rotate any value immediately if it enters Git history; deleting the current file is not enough.
 
 The fictional demo defaults are not approved legal, privacy, or operational policy for a real

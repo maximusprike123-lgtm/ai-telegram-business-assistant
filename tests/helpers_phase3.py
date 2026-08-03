@@ -151,11 +151,9 @@ class FakePhase3Uow:
 def phase3_fixture() -> tuple[FakePhase3Uow, Principal, FixedClock, str]:
     tenant_id = TenantId.new()
     schedule_id = ScheduleId.new()
-    active_category = ServiceCategory(
-        CategoryId.new(), tenant_id, {Locale.EN: "Care", Locale.RU: "Сервис"}, 1
-    )
+    active_category = ServiceCategory(CategoryId.new(), tenant_id, {Locale.EN: "Care"}, 1)
     inactive_category = ServiceCategory(
-        CategoryId.new(), tenant_id, {Locale.EN: "Hidden", Locale.RU: "Скрыто"}, 0, False
+        CategoryId.new(), tenant_id, {Locale.EN: "Hidden"}, 0, False
     )
 
     def service(
@@ -170,8 +168,8 @@ def phase3_fixture() -> tuple[FakePhase3Uow, Principal, FixedClock, str]:
             tenant_id,
             category_id,
             code,
-            {Locale.EN: f"{code} EN", Locale.RU: f"{code} RU"},
-            {Locale.EN: "English description", Locale.RU: "Русское описание"},
+            {Locale.EN: f"{code} service"},
+            {Locale.EN: "English description"},
             timedelta(minutes=90),
             price,
             active=active,
@@ -231,13 +229,13 @@ def phase3_fixture() -> tuple[FakePhase3Uow, Principal, FixedClock, str]:
         "Demo Shop",
         "Europe/Moscow",
         Locale.EN,
-        frozenset({Locale.EN, Locale.RU}),
+        frozenset({Locale.EN}),
     )
     profile = TenantPublicProfile(
         tenant_id,
         schedule_id,
-        {Locale.EN: "Demo description", Locale.RU: "Описание"},
-        addresses={Locale.EN: "Demo address", Locale.RU: "Демо-адрес"},
+        {Locale.EN: "Demo description"},
+        addresses={Locale.EN: "Demo address"},
     )
     uow = FakePhase3Uow(tenant, profile, [inactive_category, active_category], services, schedule)
     principal = Principal("tester", tenant_id, Role.VIEWER)

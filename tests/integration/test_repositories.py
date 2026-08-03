@@ -25,7 +25,7 @@ async def test_repository_round_trip_and_cross_tenant_read_isolation(
     _, factory = database
     first = TenantId.new()
     second = TenantId.new()
-    customer = Customer(CustomerId.new(), first, Locale.RU, display_name="Ada")
+    customer = Customer(CustomerId.new(), first, Locale.EN, display_name="Ada")
     async with SQLAlchemyUnitOfWork(factory) as uow:
         await uow.tenants.add(first, tenant(first, "first-shop"))
         await uow.tenants.add(second, tenant(second, "second-shop"))

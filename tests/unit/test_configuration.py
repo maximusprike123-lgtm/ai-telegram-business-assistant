@@ -11,7 +11,7 @@ def valid_environment() -> dict[str, str]:
         "PUBLIC_BASE_URL": "http://localhost:8000",
         "DEFAULT_TENANT_TIMEZONE": "Europe/Moscow",
         "DEFAULT_LOCALE": "en",
-        "SUPPORTED_LOCALES": "en,ru",
+        "SUPPORTED_LOCALES": "en",
         "DATABASE_URL": "postgresql+asyncpg://app@localhost:5432/business_assistant",
         "INTERNAL_API_ENABLED": "true",
         "INTERNAL_API_KEY": "local-phase-three-key",  # pragma: allowlist secret

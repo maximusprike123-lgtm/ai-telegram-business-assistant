@@ -1,4 +1,5 @@
 from datetime import date, time, timedelta
+from typing import cast
 
 import pytest
 
@@ -28,8 +29,8 @@ def make_service(tenant_id: TenantId, service_id: ServiceId, **overrides: object
         "tenant_id": tenant_id,
         "category_id": CategoryId.new(),
         "code": "brake-inspection",
-        "names": {Locale.EN: "Brake inspection", Locale.RU: "Проверка тормозов"},
-        "descriptions": {Locale.EN: "Inspection", Locale.RU: "Проверка"},
+        "names": {Locale.EN: "Brake inspection"},
+        "descriptions": {Locale.EN: "Inspection"},
         "duration": timedelta(minutes=45),
         "price": PricePresentation(PriceMode.STARTING_FROM, Money(5000, "RUB")),
     }
@@ -47,11 +48,12 @@ def test_service_validates_duration_and_localization(
     with pytest.raises(ValidationError):
         make_service(tenant_id, service_id, names={Locale.EN: ""})
     with pytest.raises(ValidationError):
+        unsupported = cast(Locale, "unsupported")
         make_service(
             tenant_id,
             service_id,
             names={Locale.EN: "Inspection"},
-            descriptions={Locale.RU: "Проверка"},
+            descriptions={unsupported: "Unsupported locale description"},
         )
 
 

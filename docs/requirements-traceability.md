@@ -9,7 +9,7 @@ not acceptance by itself.
 | FR-001 | 4 | Planned: Telegram identity resolution |
 | FR-002 | 2, 4 | Channel identity schema implemented; Telegram adapter planned |
 | FR-003 | 4 | Planned: deterministic onboarding disclosure |
-| FR-004 | 4 | Planned: RU/EN detection and preference |
+| FR-004 | — | Not applicable: the portfolio product is English-only; no language selector is planned |
 | FR-005 | 4, 6 | Phase 1 consent invariant implemented; notice flow planned |
 | FR-006 | 4 | Planned: deterministic Telegram commands |
 | FR-007 | 2, 4 | Message/update uniqueness and booking idempotency schema implemented; workflow planned |

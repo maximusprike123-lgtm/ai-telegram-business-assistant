@@ -33,11 +33,12 @@ export APP_ENV=local
 python -m business_assistant.infrastructure.persistence.seed
 ```
 
-It creates the EN/RU tenant and public profile, one category, and the six services specified for
-Northstar. Prices/durations are clearly synthetic defaults and exercise exact, starting-from, and
-quote-based presentation. Weekdays have 08:00–12:00 and 13:00–18:00 intervals, Saturday is
-09:00–15:00, and Sunday is closed. Fixed overrides close 2027-01-01 and specially open
-2027-01-03 from 10:00–14:00. These dates are test/demo fixtures, not current holiday policy.
+It creates the English-only tenant and public profile, one category, and the six services
+specified for Northstar. Prices/durations are clearly synthetic defaults and exercise exact,
+starting-from, and quote-based presentation. Weekdays have 08:00–12:00 and 13:00–18:00
+intervals, Saturday is 09:00–15:00, and Sunday is closed. Fixed overrides close 2027-01-01 and
+specially open 2027-01-03 from 10:00–14:00. These dates are test/demo fixtures, not current
+holiday policy.
 
 ## Test
 

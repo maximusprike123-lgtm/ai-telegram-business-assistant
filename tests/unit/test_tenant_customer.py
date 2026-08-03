@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import cast
 
 import pytest
 
@@ -20,7 +21,7 @@ def make_tenant(tenant_id: TenantId, **overrides: object) -> Tenant:
         "name": "Northstar Auto Care",
         "timezone": "Europe/Moscow",
         "default_locale": Locale.EN,
-        "supported_locales": frozenset({Locale.EN, Locale.RU}),
+        "supported_locales": frozenset({Locale.EN}),
     }
     values.update(overrides)
     return Tenant(**values)  # type: ignore[arg-type]
@@ -33,7 +34,7 @@ def test_tenant_validates_locale_timezone_and_slug(tenant_id: TenantId) -> None:
     with pytest.raises(ValidationError):
         make_tenant(tenant_id, slug="North Star")
     with pytest.raises(ValidationError):
-        make_tenant(tenant_id, supported_locales=frozenset({Locale.RU}))
+        make_tenant(tenant_id, default_locale=cast(Locale, "unsupported"))
 
 
 def test_tenant_status_controls_new_work(tenant_id: TenantId) -> None:
@@ -58,8 +59,8 @@ def test_customer_requires_privacy_pair(
 def test_customer_refuses_contact_before_consent(
     tenant_id: TenantId, customer_id: CustomerId, now: datetime
 ) -> None:
-    customer = Customer(customer_id, tenant_id, Locale.RU)
-    phone = PhoneNumber.parse("+7 999 123-45-67")
+    customer = Customer(customer_id, tenant_id, Locale.EN)
+    phone = PhoneNumber.parse("+1 202 555 0147")
     with pytest.raises(ValidationError):
         customer.update_phone(phone)
     customer.grant_contact_consent(now)

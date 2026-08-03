@@ -43,7 +43,6 @@ _SERVICE_IDS = {
 def _service(
     code: str,
     english_name: str,
-    russian_name: str,
     duration_minutes: int,
     price_mode: PriceMode,
     starting_price_minor: int | None,
@@ -57,17 +56,15 @@ def _service(
         tenant_id=NORTHSTAR_TENANT_ID,
         category_id=NORTHSTAR_CATEGORY_ID,
         code=code,
-        names={Locale.EN: english_name, Locale.RU: russian_name},
+        names={Locale.EN: english_name},
         descriptions={
-            Locale.EN: f"{english_name} appointment at the fictional Northstar workshop.",
-            Locale.RU: f"Услуга «{russian_name}» в демонстрационной мастерской Northstar.",
+            Locale.EN: f"{english_name} appointment at the fictional Northstar workshop."
         },
         duration=timedelta(minutes=duration_minutes),
         cleanup_buffer=timedelta(minutes=10),
         price=price,
         preparation_notes={
-            Locale.EN: "Bring the vehicle registration and describe observed symptoms.",
-            Locale.RU: "Возьмите документы на автомобиль и опишите замеченные симптомы.",
+            Locale.EN: "Bring the vehicle registration and describe observed symptoms."
         },
     )
 
@@ -75,11 +72,10 @@ def _service(
 def northstar_services() -> tuple[Service, ...]:
     # Demo-only durations/prices are synthetic defaults, not real offers or universal policy.
     return (
-        _service("oil-change", "Oil change", "Замена масла", 45, PriceMode.EXACT, 450_000),
+        _service("oil-change", "Oil change", 45, PriceMode.EXACT, 450_000),
         _service(
             "brake-inspection",
             "Brake inspection",
-            "Осмотр тормозов",
             60,
             PriceMode.STARTING_FROM,
             300_000,
@@ -87,16 +83,14 @@ def northstar_services() -> tuple[Service, ...]:
         _service(
             "engine-diagnostics",
             "Engine diagnostics",
-            "Диагностика двигателя",
             90,
             PriceMode.STARTING_FROM,
             500_000,
         ),
-        _service("tire-service", "Tire service", "Шиномонтаж", 60, PriceMode.EXACT, 400_000),
+        _service("tire-service", "Tire service", 60, PriceMode.EXACT, 400_000),
         _service(
             "battery-replacement",
             "Battery replacement",
-            "Замена аккумулятора",
             45,
             PriceMode.QUOTE_REQUIRED,
             None,
@@ -104,7 +98,6 @@ def northstar_services() -> tuple[Service, ...]:
         _service(
             "suspension-inspection",
             "Suspension inspection",
-            "Осмотр подвески",
             60,
             PriceMode.STARTING_FROM,
             350_000,
@@ -119,27 +112,25 @@ async def seed_northstar(database_url: str, app_env: str) -> None:
     factory = create_session_factory(engine)
     try:
         async with SQLAlchemyUnitOfWork(factory) as uow:
-            if await uow.tenants.get(NORTHSTAR_TENANT_ID, NORTHSTAR_TENANT_ID) is None:
-                await uow.tenants.add(
+            await uow.tenants.upsert(
+                NORTHSTAR_TENANT_ID,
+                Tenant(
                     NORTHSTAR_TENANT_ID,
-                    Tenant(
-                        NORTHSTAR_TENANT_ID,
-                        "northstar-auto-care",
-                        "Northstar Auto Care (fictional demo)",
-                        "Europe/Moscow",
-                        Locale.EN,
-                        frozenset({Locale.EN, Locale.RU}),
-                    ),
-                )
-            if await uow.categories.get(NORTHSTAR_TENANT_ID, NORTHSTAR_CATEGORY_ID) is None:
-                await uow.categories.add(
+                    "northstar-auto-care",
+                    "Northstar Auto Care (fictional demo)",
+                    "Europe/Moscow",
+                    Locale.EN,
+                    frozenset({Locale.EN}),
+                ),
+            )
+            await uow.categories.upsert(
+                NORTHSTAR_TENANT_ID,
+                ServiceCategory(
+                    NORTHSTAR_CATEGORY_ID,
                     NORTHSTAR_TENANT_ID,
-                    ServiceCategory(
-                        NORTHSTAR_CATEGORY_ID,
-                        NORTHSTAR_TENANT_ID,
-                        {Locale.EN: "Auto care", Locale.RU: "Автосервис"},
-                    ),
-                )
+                    {Locale.EN: "Auto care"},
+                ),
+            )
             intervals = (
                 *(ScheduleInterval(day, time(8), time(12)) for day in range(5)),
                 *(ScheduleInterval(day, time(13), time(18)) for day in range(5)),
@@ -172,36 +163,24 @@ async def seed_northstar(database_url: str, app_env: str) -> None:
                     tenant_id=NORTHSTAR_TENANT_ID,
                     schedule_id=NORTHSTAR_SCHEDULE_ID,
                     descriptions={
-                        Locale.EN: "Fictional auto-care workshop for the portfolio demonstration.",
-                        Locale.RU: "Вымышленный автосервис для демонстрации портфолио.",
+                        Locale.EN: "Fictional auto-care workshop for the portfolio demonstration."
                     },
                     public_phone="+1 555 010 0200",
                     public_email="hello@northstar.example",
                     website_url="https://northstar.example",
-                    addresses={
-                        Locale.EN: "18 Harbor Road",
-                        Locale.RU: "Харбор-роуд, 18",  # noqa: RUF001
-                    },
+                    addresses={Locale.EN: "18 Harbor Road"},
                     parking_guidance={
-                        Locale.EN: "Customer parking is beside the workshop entrance.",
-                        Locale.RU: (
-                            "Парковка для клиентов находится у входа в мастерскую."  # noqa: RUF001
-                        ),
+                        Locale.EN: "Customer parking is beside the workshop entrance."
                     },
                     payment_methods=("cash", "card"),
                     warranty_policy={
-                        Locale.EN: "Warranty terms depend on the approved service and parts.",
-                        Locale.RU: "Условия гарантии зависят от согласованных работ и деталей.",
+                        Locale.EN: "Warranty terms depend on the approved service and parts."
                     },
-                    appointment_policy={
-                        Locale.EN: "Appointments require workshop confirmation.",
-                        Locale.RU: "Запись требует подтверждения мастерской.",
-                    },
+                    appointment_policy={Locale.EN: "Appointments require workshop confirmation."},
                 ),
             )
             for service in northstar_services():
-                if await uow.services.get(NORTHSTAR_TENANT_ID, service.id) is None:
-                    await uow.services.add(NORTHSTAR_TENANT_ID, service)
+                await uow.services.upsert(NORTHSTAR_TENANT_ID, service)
             await uow.commit()
     finally:
         await engine.dispose()

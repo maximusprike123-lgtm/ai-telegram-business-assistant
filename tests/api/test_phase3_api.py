@@ -12,16 +12,16 @@ def client(role: Role = Role.VIEWER) -> tuple[TestClient, str, Principal]:
     return TestClient(app), key, principal
 
 
-def test_valid_authenticated_localized_requests_and_request_id() -> None:
+def test_valid_authenticated_english_fallback_and_request_id() -> None:
     api, key, _ = client()
     response = api.get(
-        "/api/v1/catalog/services?locale=ru",
+        "/api/v1/catalog/services?locale=es",
         headers={"X-Internal-API-Key": key, "X-Request-ID": "request-123"},
     )
     assert response.status_code == 200
     assert response.headers["X-Request-ID"] == "request-123"
-    assert response.json()[0]["locale"] == "ru"
-    assert response.json()[0]["duration_display"] == "1 час 30 минут"
+    assert response.json()[0]["locale"] == "en"
+    assert response.json()[0]["duration_display"] == "1 hour 30 minutes"
 
 
 def test_missing_and_invalid_credentials_are_401_without_secret_echo() -> None:

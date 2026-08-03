@@ -171,6 +171,25 @@ class TenantRepository:
         self._session.add(tenant_to_row(entity))
         await _flush(self._session, "Tenant")
 
+    async def upsert(self, tenant_id: TenantId, entity: Tenant) -> None:
+        if entity.id != tenant_id:
+            raise TenantMismatchError("Tenant")
+        row = await self._session.get(TenantRow, tenant_id.value)
+        replacement = tenant_to_row(entity)
+        if row is None:
+            self._session.add(replacement)
+        else:
+            for attribute in (
+                "slug",
+                "name",
+                "timezone",
+                "default_locale",
+                "supported_locales",
+                "status",
+            ):
+                setattr(row, attribute, getattr(replacement, attribute))
+        await _flush(self._session, "Tenant")
+
     async def list_page(
         self, tenant_id: TenantId, *, cursor: str | None, limit: int
     ) -> Sequence[Tenant]:
@@ -195,6 +214,23 @@ class CategoryRepository(SQLAlchemyRepository[ServiceCategory, CategoryId, Servi
         super().__init__(
             session, ServiceCategoryRow, category_to_row, category_from_row, "ServiceCategory"
         )
+
+    async def upsert(self, tenant_id: TenantId, entity: ServiceCategory) -> None:
+        if entity.tenant_id != tenant_id:
+            raise TenantMismatchError("ServiceCategory")
+        row = await self._session.scalar(
+            select(ServiceCategoryRow).where(
+                ServiceCategoryRow.tenant_id == tenant_id.value,
+                ServiceCategoryRow.id == entity.id.value,
+            )
+        )
+        replacement = category_to_row(entity)
+        if row is None:
+            self._session.add(replacement)
+        else:
+            for attribute in ("names", "sort_order", "active"):
+                setattr(row, attribute, getattr(replacement, attribute))
+        await _flush(self._session, "ServiceCategory")
 
     async def list_active(self, tenant_id: TenantId) -> Sequence[ServiceCategory]:
         rows = (
@@ -225,6 +261,38 @@ class CategoryRepository(SQLAlchemyRepository[ServiceCategory, CategoryId, Servi
 class ServiceRepository(SQLAlchemyRepository[Service, ServiceId, ServiceRow]):
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, ServiceRow, service_to_row, service_from_row, "Service")
+
+    async def upsert(self, tenant_id: TenantId, entity: Service) -> None:
+        if entity.tenant_id != tenant_id:
+            raise TenantMismatchError("Service")
+        row = await self._session.scalar(
+            select(ServiceRow).where(
+                ServiceRow.tenant_id == tenant_id.value,
+                ServiceRow.id == entity.id.value,
+            )
+        )
+        replacement = service_to_row(entity)
+        if row is None:
+            self._session.add(replacement)
+        else:
+            for attribute in (
+                "category_id",
+                "code",
+                "names",
+                "descriptions",
+                "duration_seconds",
+                "buffer_seconds",
+                "price_mode",
+                "price_min_minor",
+                "price_max_minor",
+                "currency",
+                "preparation_notes",
+                "eligibility_notes",
+                "active",
+                "bookable",
+            ):
+                setattr(row, attribute, getattr(replacement, attribute))
+        await _flush(self._session, "Service")
 
     async def list_active(
         self, tenant_id: TenantId, *, category_id: CategoryId | None

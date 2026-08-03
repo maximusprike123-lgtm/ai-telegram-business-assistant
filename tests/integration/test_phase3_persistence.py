@@ -30,12 +30,12 @@ async def test_phase3_profile_and_catalog_queries_are_tenant_scoped_on_postgresq
 
     typed_factory: Phase3UnitOfWorkFactory = uow_factory
     principal = Principal("integration", NORTHSTAR_TENANT_ID, Role.VIEWER)
-    services = await ListServices(typed_factory).execute(principal, "ru")
+    services = await ListServices(typed_factory).execute(principal, "es")
     profile_result = await GetTenantPublicProfile(
         typed_factory, FixedClock(datetime(2026, 8, 3, 6, 30, tzinfo=UTC))
     ).execute(principal, "en")
     assert len(services) == 6
-    assert all(item.locale == "ru" for item in services)
+    assert all(item.locale == "en" for item in services)
     assert "fictional demo" in profile_result.name
     assert profile_result.status.open_now
     async with SQLAlchemyUnitOfWork(factory) as uow:

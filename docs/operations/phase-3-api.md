@@ -31,16 +31,15 @@ the server creates a UUID.
 | `GET /api/v1/business-status` | status at optional timezone-aware `at`, otherwise injected clock |
 | `GET /api/v1/next-opening` | next opening at optional timezone-aware `at` |
 
-`locale` supports RU and EN. Unsupported requests fall back to tenant default, then EN, then the
-lexically first supported locale with content. The resolved locale is returned. OpenAPI is at
-`/openapi.json`; interactive docs are at `/docs` for local use.
+Northstar supports English only. An unsupported `locale` request falls back deterministically to
+the tenant default, which is English; no translation is invented. The resolved `en` locale is
+returned. OpenAPI is at `/openapi.json`; interactive docs are at `/docs` for local use.
 
 ## Deterministic presentation and schedules
 
-Money remains integer minor units. Exact English/Russian price wording is `RUB 1,250.50` /
-`1 250,50 RUB`; starting prices add `From` / `От`; quote-based services say
-`Contact us for a quote` / `Свяжитесь с нами для расчёта стоимости`. Durations retain seconds and
-have deterministic localized hour/minute wording.
+Money remains integer minor units. Exact prices use wording such as `RUB 1,250.50`, starting
+prices add `From`, and quote-based services say `Contact us for a quote`. Durations retain seconds
+and have deterministic English hour/minute wording.
 
 Date overrides replace recurring hours, and closure overrides win by producing a closed day.
 Multiple intervals remain separate, so gaps are breaks. Next-open returns `open_now=true` without

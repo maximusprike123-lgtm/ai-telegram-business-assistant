@@ -19,6 +19,9 @@ The current code is deliberately not a chatbot. Consequential operations belong 
 application and domain workflows; future AI output remains advisory until it passes structured,
 authorization, policy, and evidence validation.
 
+The Northstar portfolio demo is English-only. Unsupported locale requests fall back to English;
+the Phase 4 Telegram baseline will not include a language selector or `/language` command.
+
 ## Architecture baseline
 
 The product is a modular monolith using Clean Architecture:

@@ -10,6 +10,7 @@ from ..common.errors import (
     InvalidScheduleError,
     PublicProfileNotFoundError,
     TenantNotFoundError,
+    UnresolvedLocaleError,
 )
 from ..common.localization import locale_candidates
 from ..common.security import Permission, Principal
@@ -18,14 +19,15 @@ from .engine import effective_day, is_open, next_opening, require_aware
 
 _DAY_LABELS = {
     "en": ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
-    "ru": ("Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"),
 }
 
 
 def business_hours_dtos(
     schedule: BusinessSchedule, start_date: date, days: int, locale: str
 ) -> tuple[BusinessDayDTO, ...]:
-    labels = _DAY_LABELS[locale]
+    labels = _DAY_LABELS.get(locale)
+    if labels is None:
+        raise UnresolvedLocaleError()
     result = []
     for offset in range(days):
         day = effective_day(schedule, start_date + timedelta(days=offset))

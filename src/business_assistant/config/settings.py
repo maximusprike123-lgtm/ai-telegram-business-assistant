@@ -212,7 +212,7 @@ def load_settings(environ: Mapping[str, str] | None = None) -> RuntimeSettings:
         default_locale = Locale(_text(values, "DEFAULT_LOCALE", "en"))
         supported = frozenset(
             Locale(item.strip())
-            for item in _text(values, "SUPPORTED_LOCALES", "en,ru").split(",")
+            for item in _text(values, "SUPPORTED_LOCALES", "en").split(",")
             if item.strip()
         )
     except ValueError as exc:

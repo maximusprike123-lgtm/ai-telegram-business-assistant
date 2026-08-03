@@ -239,7 +239,7 @@ def test_knowledge_requires_ready_before_publication(
 
 
 def test_knowledge_failure_can_retry_parsing(tenant_id: TenantId, document_id: DocumentId) -> None:
-    document = KnowledgeDocument(document_id, tenant_id, "Policy", Locale.RU, "pdf", "b" * 64)
+    document = KnowledgeDocument(document_id, tenant_id, "Policy", Locale.EN, "pdf", "b" * 64)
     document.transition_to(KnowledgeStatus.FAILED)
     document.transition_to(KnowledgeStatus.PARSING)
     with pytest.raises(InvalidStateTransition):

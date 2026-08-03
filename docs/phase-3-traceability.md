@@ -4,7 +4,7 @@
 |---|---|
 | Immutable validated configuration | `config/settings.py`; configuration unit tests |
 | Customer-safe tenant profile | profile domain record, tenant query DTO, migration 0002, API tests |
-| RU/EN active catalog | catalog query use cases, localization policy, unit and PostgreSQL tests |
+| English-only active catalog | catalog query use cases, fallback policy, unit and PostgreSQL tests |
 | Exact/starting/quote prices and durations | integer-minor-unit DTO mapping and wording tests |
 | Weekly hours, gaps, closures, special hours | scheduling engine and deterministic engine tests |
 | Current status and bounded next opening | clock-driven use cases; boundary/horizon tests |

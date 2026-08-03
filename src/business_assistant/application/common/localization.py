@@ -1,4 +1,4 @@
-"""Deterministic RU/EN content, money, and duration presentation."""
+"""Deterministic English content, money, duration, and locale fallback presentation."""
 
 from datetime import timedelta
 
@@ -40,60 +40,41 @@ def resolve_common_locale(
     raise UnresolvedLocaleError()
 
 
-def _amount(money: Money, locale: Locale) -> str:
+def _require_english(locale: Locale) -> None:
+    if locale is not Locale.EN:
+        raise UnresolvedLocaleError()
+
+
+def _amount(money: Money) -> str:
     whole, fraction = divmod(money.amount_minor, 100)
-    separator = " " if locale is Locale.RU else ","
-    decimal = "," if locale is Locale.RU else "."
-    grouped = f"{whole:,}".replace(",", separator)
-    return f"{grouped}{decimal}{fraction:02d}"
+    return f"{whole:,}.{fraction:02d}"
 
 
 def format_price(price: PricePresentation, locale: Locale) -> str | None:
+    _require_english(locale)
     minimum, maximum = price.minimum, price.maximum
     if price.mode is PriceMode.NOT_DISPLAYED:
         return None
     if price.mode is PriceMode.QUOTE_REQUIRED:
-        return (
-            "Свяжитесь с нами для расчёта стоимости"  # noqa: RUF001
-            if locale is Locale.RU
-            else "Contact us for a quote"
-        )
+        return "Contact us for a quote"
     if minimum is None:
         raise ValueError("Validated public price is missing its minimum")
-    first = _amount(minimum, locale)
+    first = _amount(minimum)
     if price.mode is PriceMode.RANGE:
         if maximum is None:
             raise ValueError("Validated price range is missing its maximum")
-        amounts = f"{first}-{_amount(maximum, locale)}"
-        return (
-            f"{amounts} {minimum.currency}"
-            if locale is Locale.RU
-            else f"{minimum.currency} {amounts}"
-        )
-    exact = f"{first} {minimum.currency}" if locale is Locale.RU else f"{minimum.currency} {first}"
+        amounts = f"{first}-{_amount(maximum)}"
+        return f"{minimum.currency} {amounts}"
+    exact = f"{minimum.currency} {first}"
     if price.mode is PriceMode.STARTING_FROM:
-        return f"От {exact}" if locale is Locale.RU else f"From {exact}"
+        return f"From {exact}"
     return exact
 
 
-def _ru_unit(value: int, forms: tuple[str, str, str]) -> str:
-    if value % 10 == 1 and value % 100 != 11:
-        return forms[0]
-    if 2 <= value % 10 <= 4 and not 12 <= value % 100 <= 14:
-        return forms[1]
-    return forms[2]
-
-
 def format_duration(duration: timedelta, locale: Locale) -> str:
+    _require_english(locale)
     total_minutes = int(duration.total_seconds()) // 60
     hours, minutes = divmod(total_minutes, 60)
-    if locale is Locale.RU:
-        parts = []
-        if hours:
-            parts.append(f"{hours} {_ru_unit(hours, ('час', 'часа', 'часов'))}")
-        if minutes:
-            parts.append(f"{minutes} {_ru_unit(minutes, ('минута', 'минуты', 'минут'))}")
-        return " ".join(parts)
     parts = []
     if hours:
         parts.append(f"{hours} {'hour' if hours == 1 else 'hours'}")

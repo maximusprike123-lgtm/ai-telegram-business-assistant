@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from typing import cast
 
 import pytest
 
@@ -124,7 +125,7 @@ def test_price_modes_reject_contradictory_amounts() -> None:
 def test_domain_event_is_immutable_and_validated(tenant_id: TenantId, now: datetime) -> None:
     payload = {"locale": Locale.EN}
     event = DomainEvent("tenant.created", tenant_id, "Tenant", tenant_id, now, payload)
-    payload["locale"] = Locale.RU
+    payload["locale"] = cast(Locale, "unsupported")
     assert event.payload["locale"] is Locale.EN
     with pytest.raises(TypeError):
         event.payload["x"] = 1  # type: ignore[index]

@@ -1,4 +1,4 @@
-# Phase 2 database runbook
+# Database runbook through Phase 4
 
 Phase 2 supports PostgreSQL only. Use a disposable database for tests; migration tests remove and
 recreate the application schema. The database role needs permission to create the `vector` and
@@ -22,6 +22,8 @@ alembic upgrade head
 ```
 
 Downgrade removes application tables but deliberately leaves shared PostgreSQL extensions.
+Revision `0003_phase4` adds the metadata-only Telegram update ledger. Its lifecycle and retention
+operation are documented in the [Phase 4 Telegram runbook](phase-4-telegram.md).
 
 ## Seed the fictional demo
 

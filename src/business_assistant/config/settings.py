@@ -114,10 +114,22 @@ class SecurityConfig:
 @dataclass(frozen=True, slots=True)
 class TelegramConfig:
     enabled: bool
-    polling_enabled: bool
+    delivery_mode: str
     bot_token: str | None
+    bot_id: int | None
+    tenant_id: TenantId | None
     webhook_secret: str | None
     webhook_path_secret: str | None
+    webhook_base_url: str | None
+    update_max_bytes: int
+    callback_version: int
+    callback_expiry_seconds: int
+    deduplication_retention_days: int
+    processing_stale_seconds: int
+
+    @property
+    def polling_enabled(self) -> bool:
+        return self.enabled and self.delivery_mode == "polling"
 
 
 @dataclass(frozen=True, slots=True)
@@ -237,9 +249,70 @@ def load_settings(environ: Mapping[str, str] | None = None) -> RuntimeSettings:
         except ValueError as exc:
             raise ConfigurationError("INTERNAL_API_ROLE", "contains an unsupported role") from exc
     telegram_enabled = _boolean(values, "TELEGRAM_ENABLED", False)
-    polling = _boolean(values, "TELEGRAM_POLLING_ENABLED", False)
-    if production and polling:
+    telegram_bot_token = _secret(
+        values, "TELEGRAM_BOT_TOKEN", required=telegram_enabled, production=production
+    )
+    telegram_mode = _text(values, "TELEGRAM_DELIVERY_MODE", "webhook").lower()
+    legacy_polling = _boolean(values, "TELEGRAM_POLLING_ENABLED", False)
+    if legacy_polling:
+        if "TELEGRAM_DELIVERY_MODE" in values and telegram_mode != "polling":
+            raise ConfigurationError(
+                "TELEGRAM_POLLING_ENABLED", "conflicts with TELEGRAM_DELIVERY_MODE"
+            )
+        telegram_mode = "polling"
+    if telegram_mode not in {"webhook", "polling"}:
+        raise ConfigurationError("TELEGRAM_DELIVERY_MODE", "must be webhook or polling")
+    if production and legacy_polling:
         raise ConfigurationError("TELEGRAM_POLLING_ENABLED", "cannot be enabled in production")
+    if production and telegram_enabled and telegram_mode != "webhook":
+        raise ConfigurationError("TELEGRAM_DELIVERY_MODE", "must be webhook in production")
+    telegram_bot_id: int | None = None
+    telegram_tenant_id: TenantId | None = None
+    if telegram_enabled:
+        telegram_bot_id = _integer(values, "TELEGRAM_BOT_ID", 0, 1, 9_999_999_999_999)
+        try:
+            telegram_tenant_id = TenantId(UUID(_text(values, "TELEGRAM_TENANT_ID")))
+        except (ValueError, AttributeError) as exc:
+            raise ConfigurationError("TELEGRAM_TENANT_ID", "must be a UUID") from exc
+    webhook_base_url = _url(
+        values,
+        "TELEGRAM_WEBHOOK_BASE_URL",
+        schemes=frozenset({"http", "https"}),
+        required=telegram_enabled and telegram_mode == "webhook",
+    )
+    if production and webhook_base_url is not None and not webhook_base_url.startswith("https://"):
+        raise ConfigurationError("TELEGRAM_WEBHOOK_BASE_URL", "must use HTTPS in production")
+    callback_signing_key = _secret(
+        values, "CALLBACK_SIGNING_KEY", required=telegram_enabled, production=production
+    )
+    webhook_secret_value = _secret(
+        values,
+        "TELEGRAM_WEBHOOK_SECRET",
+        required=telegram_enabled and telegram_mode == "webhook",
+        production=production,
+    )
+    if (
+        webhook_secret_value is not None
+        and re.fullmatch(r"[A-Za-z0-9_-]{1,256}", webhook_secret_value) is None
+    ):
+        raise ConfigurationError(
+            "TELEGRAM_WEBHOOK_SECRET",
+            "must use 1-256 ASCII letters, digits, underscores, or hyphens",
+        )
+    webhook_path_secret_value = _secret(
+        values,
+        "TELEGRAM_WEBHOOK_PATH_SECRET",
+        required=telegram_enabled and telegram_mode == "webhook",
+        production=production,
+    )
+    if (
+        webhook_path_secret_value is not None
+        and re.fullmatch(r"[A-Za-z0-9_-]{1,256}", webhook_path_secret_value) is None
+    ):
+        raise ConfigurationError(
+            "TELEGRAM_WEBHOOK_PATH_SECRET",
+            "must use 1-256 ASCII letters, digits, underscores, or hyphens",
+        )
     redis_enabled = _boolean(values, "REDIS_ENABLED", False)
     celery_enabled = _boolean(values, "CELERY_ENABLED", False)
     celery_results_enabled = _boolean(values, "CELERY_RESULTS_ENABLED", False)
@@ -308,27 +381,25 @@ def load_settings(environ: Mapping[str, str] | None = None) -> RuntimeSettings:
             api_key,
             tenant_id,
             role,
-            _secret(values, "CALLBACK_SIGNING_KEY", required=False, production=production),
+            callback_signing_key,
             _secret(values, "CONFIRMATION_SIGNING_KEY", required=False, production=production),
             _secret(values, "FIELD_ENCRYPTION_KEY", required=False, production=production),
             admin_token,
         ),
         telegram=TelegramConfig(
             telegram_enabled,
-            polling,
-            _secret(values, "TELEGRAM_BOT_TOKEN", required=telegram_enabled, production=production),
-            _secret(
-                values,
-                "TELEGRAM_WEBHOOK_SECRET",
-                required=telegram_enabled and production,
-                production=production,
-            ),
-            _secret(
-                values,
-                "TELEGRAM_WEBHOOK_PATH_SECRET",
-                required=telegram_enabled and production,
-                production=production,
-            ),
+            telegram_mode,
+            telegram_bot_token,
+            telegram_bot_id,
+            telegram_tenant_id,
+            webhook_secret_value,
+            webhook_path_secret_value,
+            webhook_base_url,
+            _integer(values, "TELEGRAM_UPDATE_MAX_BYTES", 1_048_576, 1024, 10_485_760),
+            _integer(values, "TELEGRAM_CALLBACK_VERSION", 1, 1, 99),
+            _integer(values, "TELEGRAM_CALLBACK_EXPIRY_SECONDS", 900, 30, 86_400),
+            _integer(values, "TELEGRAM_DEDUPLICATION_RETENTION_DAYS", 7, 1, 90),
+            _integer(values, "TELEGRAM_PROCESSING_STALE_SECONDS", 60, 5, 3600),
         ),
         redis=RedisConfig(
             redis_enabled,

@@ -5,8 +5,8 @@
 - Python 3.12 or newer; CI verifies Python 3.12 and 3.13.
 - Git.
 - PostgreSQL 18 with pgvector and `btree_gist` is required for the integration gate.
-- FastAPI is used only for the protected Phase 3 internal adapter. Redis, Telegram, Celery, and
-  OpenAI remain disabled and are not required for tests or local catalog/schedule queries.
+- FastAPI serves the protected Phase 3 API and authenticated Phase 4 webhook. aiogram 3 is the
+  Telegram presentation adapter. Redis, Celery, and OpenAI remain disabled and are not required.
 
 ## First setup
 
@@ -43,11 +43,12 @@ The database user must be able to create the `vector` and `btree_gist` extension
 coverage should remain higher where business consequences are involved. Do not lower a gate to
 make a change pass.
 
-Focused Phase 3 checks can be run with:
+Focused Phase 3 and Phase 4 checks can be run with:
 
 ```bash
 pytest tests/unit/test_configuration.py tests/unit/test_phase3_queries.py \
-  tests/unit/test_schedule_engine.py tests/api
+  tests/unit/test_schedule_engine.py tests/unit/test_telegram_application.py \
+  tests/unit/test_telegram_rendering.py tests/unit/test_telegram_dispatcher.py tests/api
 pytest -m postgresql
 ```
 
@@ -58,6 +59,16 @@ local database, set the four `INTERNAL_API_*` variables described in the
 ```bash
 uvicorn business_assistant.bootstrap.phase3:create_app_from_environment --factory
 ```
+
+After migrating and seeding a disposable database, use the Phase 4 environment inventory and run:
+
+```bash
+uvicorn business_assistant.bootstrap.phase4:create_app_from_environment --factory
+business-assistant-telegram-polling  # explicit local polling mode only
+```
+
+The [Telegram runbook](operations/phase-4-telegram.md) documents mutually exclusive modes,
+webhook registration, secrets, retry semantics, and update-ledger cleanup.
 
 ## Git hooks
 

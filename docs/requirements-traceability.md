@@ -6,20 +6,20 @@ not acceptance by itself.
 
 | Requirement | Roadmap owner | Status / verification anchor |
 |---|---:|---|
-| FR-001 | 4 | Planned: Telegram identity resolution |
-| FR-002 | 2, 4 | Channel identity schema implemented; Telegram adapter planned |
-| FR-003 | 4 | Planned: deterministic onboarding disclosure |
+| FR-001 | 4 | Implemented: private-chat Telegram identity resolution and stable conversation context |
+| FR-002 | 2, 4 | Implemented: tenant-scoped minimal channel identity schema and concurrency-safe adapter |
+| FR-003 | 4 | Implemented: deterministic `/start` welcome, demo disclosure, and menu |
 | FR-004 | — | Not applicable: the portfolio product is English-only; no language selector is planned |
-| FR-005 | 4, 6 | Phase 1 consent invariant implemented; notice flow planned |
-| FR-006 | 4 | Planned: deterministic Telegram commands |
-| FR-007 | 2, 4 | Message/update uniqueness and booking idempotency schema implemented; workflow planned |
-| FR-010 | 4 | Planned: deterministic routing and copy |
-| FR-011 | 3, 4 | Phase 3 deterministic profile/catalog lookup implemented; Telegram routing planned |
+| FR-005 | 4, 6 | Phase 1 consent invariant and Phase 4 privacy notice implemented; acceptance workflow deferred |
+| FR-006 | 4 | Implemented for English-only scope: start/help/catalog/hours/cancel; no language command |
+| FR-007 | 2, 4 | Implemented: durable tenant/bot/update processing lifecycle and duplicate/concurrency tests |
+| FR-010 | 4 | Implemented: deterministic command, menu, callback, and unknown-text routing |
+| FR-011 | 3, 4 | Implemented: validated profile/catalog lookup exposed through Telegram navigation |
 | FR-012 | 8 | Planned: published tenant-scoped retrieval |
 | FR-013 | 7, 8 | Planned: evidence threshold and safe refusal |
 | FR-014 | 2, 8 | Citation value object and versioned knowledge lineage schema implemented; answer use planned |
 | FR-015 | 6, 7 | Planned: deterministic risk boundary and handoff |
-| FR-020 | 3, 4 | Phase 3 localized catalog query implemented; Telegram pagination planned |
+| FR-020 | 3, 4 | Implemented: active catalog category/service navigation with bounded signed pagination |
 | FR-021 | 3 | Implemented: localized service detail, duration, and public price query |
 | FR-022 | 1, 3 | Implemented: price presentation invariants and tests |
 | FR-023 | 1, 2, 3 | Implemented: public queries enforce active service and category state |
@@ -40,15 +40,15 @@ not acceptance by itself.
 | FR-048 | 5, 10 | Planned: post-commit outbox notifications |
 | FR-049 | 5, 10 | Planned: hold expiry and cleanup worker |
 | FR-050 | 3 | Implemented: override precedence, current status, bounded next-open calculation |
-| FR-051 | 3, 4 | Phase 3 outside-hours facts implemented; Telegram response planned |
+| FR-051 | 3, 4 | Implemented: Telegram renders status, hours, and deterministic next opening |
 | FR-052 | 3, 6 | Handoff due-time field implemented; next-open policy planned |
-| FR-060 | 4, 9 | Active workflow field implemented; durable memory planned |
+| FR-060 | 4, 9 | Phase 4 stateless navigation/cancel baseline; durable workflow memory remains Phase 9 |
 | FR-061 | 9 | Planned: facts with provenance/confidence/sensitivity |
 | FR-062 | 9 | Planned: confirmation-state enforcement |
 | FR-063 | 9 | Planned: summary authority boundary |
-| FR-064 | 4, 5, 9 | Planned: workflow cancellation and hold release |
+| FR-064 | 4, 5, 9 | Phase 4 safe no-active-workflow cancel; booking hold release remains Phase 5 |
 | FR-065 | 9, 11 | Planned: retention and anonymization workflow |
-| FR-070 | 4, 6 | Planned: explicit handoff entry point |
+| FR-070 | 4, 6 | Phase 4 explicit non-creating human-help placeholder; real handoff entry is Phase 6 |
 | FR-071 | 6, 7 | Handoff reason model implemented; trigger policy planned |
 | FR-072 | 2, 6 | Core handoff model and tenant-scoped persistence implemented; use cases planned |
 | FR-073 | 6, 10 | Planned: idempotent admin notification |
@@ -76,3 +76,4 @@ not acceptance by itself.
 | Privacy/logging (15, 17) | ADR 0004, environment policy, secret scan | 9, 11 |
 | CI quality baseline (21, 22) | Ruff, mypy, API/unit/PostgreSQL tests, coverage, build, secret scan | Expanded each phase |
 | Docker/runtime (19) | Explicitly deferred | 12 |
+| Telegram delivery/idempotency (10, 16, 18) | Authenticated webhook, development polling, durable lifecycle, safe callbacks/logs | 10 outbound outbox, 11 hardening |

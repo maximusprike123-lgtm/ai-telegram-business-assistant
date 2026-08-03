@@ -4,7 +4,8 @@ A controlled, tenant-aware business workflow system for Telegram customer suppor
 knowledge answers, lead qualification, booking, and human handoff.
 
 > **Demo notice:** Northstar Auto Care is a fictional portfolio business. The current repository
-> does not connect to Telegram or create real appointments, and it contains no real customer data.
+> ships with Telegram disabled and no credentials, does not create real appointments, and contains
+> no real customer data.
 
 ## Status
 
@@ -13,14 +14,16 @@ knowledge answers, lead qualification, booking, and human handoff.
 - Phase 2: PostgreSQL persistence, migrations, repositories, and fictional demo seed
 - Phase 3: validated runtime configuration, public business profile, localized catalog,
   deterministic business-hours engine, and protected internal HTTP API
-- Phases 4–13: not implemented
+- Phase 4: English-only aiogram presentation, authenticated webhook, durable update deduplication,
+  minimal Telegram identity, signed menus, safe rendering, and development polling
+- Phases 5–13: not implemented
 
 The current code is deliberately not a chatbot. Consequential operations belong to validated
 application and domain workflows; future AI output remains advisory until it passes structured,
 authorization, policy, and evidence validation.
 
 The Northstar portfolio demo is English-only. Unsupported locale requests fall back to English;
-the Phase 4 Telegram baseline will not include a language selector or `/language` command.
+the Telegram baseline does not include a language selector or `/language` command.
 
 ## Architecture baseline
 
@@ -93,6 +96,8 @@ Database migration and fictional demo seed commands are documented in the
 [Phase 2 database runbook](docs/operations/database.md).
 The protected read-only API and Northstar examples are in the
 [Phase 3 API runbook](docs/operations/phase-3-api.md).
+Telegram webhook registration, polling, retry, and cleanup operations are in the
+[Phase 4 Telegram runbook](docs/operations/phase-4-telegram.md).
 
 ## Repository layout
 
@@ -100,9 +105,9 @@ The protected read-only API and Northstar examples are in the
 src/business_assistant/
 ├── domain/          # Pure entities, policies, events, and value objects
 ├── application/     # Use-case boundaries and inward-facing ports
-├── infrastructure/  # Async PostgreSQL repositories, mappings, UoW, and demo seed
-├── presentation/    # Explicit FastAPI schemas and thin internal HTTP adapter
-├── bootstrap/       # Phase 3 composition root
+├── infrastructure/  # PostgreSQL repositories, Telegram stores, safe logs, and demo seed
+├── presentation/    # FastAPI and aiogram adapters, rendering, delivery, and middleware
+├── bootstrap/       # HTTP composition roots and explicit polling command
 └── config/          # Immutable, validated runtime settings
 tests/
 ├── unit/
@@ -120,6 +125,7 @@ docs/
 - [Phase 1 traceability](docs/phase-1-traceability.md)
 - [Phase 2 traceability](docs/phase-2-traceability.md)
 - [Phase 3 traceability](docs/phase-3-traceability.md)
+- [Phase 4 traceability](docs/phase-4-traceability.md)
 
 The implementation specification remains the source of truth. Documentation in this repository
 records decisions and implementation status; it does not replace the specification.

@@ -16,6 +16,7 @@ from .queries import (
     InvalidScheduleError,
     PublicProfileNotFoundError,
     ServiceNotFoundError,
+    TelegramIdentityUnavailableError,
     TenantNotFoundError,
     UnresolvedLocaleError,
 )
@@ -34,6 +35,7 @@ __all__ = [
     "PublicProfileNotFoundError",
     "ServiceNotFoundError",
     "StaleEntityError",
+    "TelegramIdentityUnavailableError",
     "TenantNotFoundError",
     "UnresolvedLocaleError",
 ]

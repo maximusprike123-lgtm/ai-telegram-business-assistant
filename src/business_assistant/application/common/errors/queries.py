@@ -55,3 +55,8 @@ class AuthenticationError(ApplicationError):
 class AuthorizationError(ApplicationError):
     def __init__(self) -> None:
         super().__init__("auth.forbidden", "This principal is not allowed to perform the action")
+
+
+class TelegramIdentityUnavailableError(ApplicationError):
+    def __init__(self) -> None:
+        super().__init__("telegram.identity_unavailable", "Telegram identity is unavailable")

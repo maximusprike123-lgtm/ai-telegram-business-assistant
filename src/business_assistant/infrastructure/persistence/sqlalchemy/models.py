@@ -190,6 +190,36 @@ class MessageRow(Base):
     )
 
 
+class TelegramUpdateRow(Base):
+    __tablename__ = "telegram_updates"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "bot_id", "update_id"),
+        CheckConstraint("bot_id > 0", name="bot_id_positive"),
+        CheckConstraint("update_id >= 0", name="update_id_nonnegative"),
+        CheckConstraint("attempts >= 1", name="attempts_positive"),
+        CheckConstraint("status IN ('processing','completed','failed')", name="status_allowed"),
+        Index("ix_telegram_updates_terminal_created", "status", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    bot_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    update_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    claimed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
 class ServiceCategoryRow(Base):
     __tablename__ = "service_categories"
     __table_args__ = (

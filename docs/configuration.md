@@ -1,6 +1,6 @@
 # Environment and configuration baseline
 
-`.env.example` is a safe inventory, not a committed runtime configuration. Phase 3 loads an
+`.env.example` is a safe inventory, not a committed runtime configuration. Phase 4 loads an
 immutable `RuntimeSettings` object once at the composition boundary. Domain entities and
 application use cases never read process environment variables. Phase 2 Alembic and seed commands
 read `DATABASE_URL`; integration tests read `TEST_DATABASE_URL`.
@@ -31,13 +31,20 @@ secrets do not belong in tenant configuration.
 | Controls | upload, retention, rate limits | environment defaults, then tenant policy |
 | Admin bootstrap | local operator token | local demo only |
 
-## Phase 3 implemented groups
+## Implemented groups through Phase 4
 
 The loader validates application identity and public URL, PostgreSQL connectivity and bounded
 pool settings, internal API bind/timeout settings, tenant-bound API credentials, Telegram,
 Redis, Celery and OpenAI enablement, observability, and feature switches. An integration's
-credential or URL is required only when that integration is enabled. Phase 3 keeps Telegram,
-Redis, Celery, OpenAI, RAG, and automatic handoff disabled.
+credential or URL is required only when that integration is enabled. Telegram is implemented but
+disabled by default; Redis, Celery, OpenAI, RAG, and automatic handoff remain unimplemented/off.
+
+Enabled Telegram requires a token, matching numeric bot ID, tenant UUID, callback signing key, and
+one delivery mode. Webhook mode additionally requires a public base URL plus independent header and
+path secrets limited to Telegram-safe ASCII characters. Polling mode is local-development only.
+Payload size, callback version/expiry, terminal-row retention, and stale-processing reclaim time are
+bounded. `TELEGRAM_POLLING_ENABLED` is accepted only as a deprecated compatibility input; new
+configuration must use `TELEGRAM_DELIVERY_MODE` and cannot select both modes.
 
 Signing/encryption/metrics/admin secrets are optional until their owning feature is used but are
 still checked for production strength when supplied. Celery results have an independent switch;
@@ -67,8 +74,9 @@ to own their connection separately.
 
 Startup fails safely for invalid environment names, schemes/hosts/ports, production HTTP,
 weak production credentials, non-IANA timezones, unsupported locales, inconsistent feature
-switches, bad roles, and out-of-range numeric settings. Telegram polling is rejected in
-production. Errors name the setting and a safe reason without echoing its value. Later phases
+switches, bad roles, bot/token mismatch at composition, and out-of-range numeric settings.
+Telegram polling is rejected in production and Telegram webhook URLs must use HTTPS there. Errors
+name the setting and a safe reason without echoing its value. Later phases
 will add provider-specific model/dimension compatibility checks when the Phase 7 AI adapter owns
 a versioned model catalog; Phase 3 already requires and bounds embedding dimensions when RAG is
 enabled.

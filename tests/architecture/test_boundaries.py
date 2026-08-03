@@ -51,3 +51,31 @@ def test_domain_does_not_import_outer_layers() -> None:
         ):
             violations.append(str(path.relative_to(domain_root)))
     assert not violations
+
+
+def test_telegram_presentation_does_not_import_persistence_or_orm() -> None:
+    telegram_root = (
+        Path(__file__).parents[2] / "src" / "business_assistant" / "presentation" / "telegram"
+    )
+    forbidden_fragments = (
+        "business_assistant.infrastructure.persistence",
+        "sqlalchemy",
+        "asyncpg",
+    )
+    violations: list[str] = []
+    for path in telegram_root.rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        modules = [
+            node.module
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module is not None
+        ]
+        modules.extend(
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        )
+        if any(fragment in module for module in modules for fragment in forbidden_fragments):
+            violations.append(str(path.relative_to(telegram_root)))
+    assert not violations

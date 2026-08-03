@@ -30,6 +30,74 @@ def test_valid_development_configuration_groups_settings() -> None:
     assert not settings.openai.enabled
 
 
+def telegram_environment(*, mode: str = "webhook") -> dict[str, str]:
+    values = valid_environment()
+    values.update(
+        {
+            "TELEGRAM_ENABLED": "true",
+            "TELEGRAM_DELIVERY_MODE": mode,
+            "TELEGRAM_BOT_TOKEN": "42:local-telegram-token",  # pragma: allowlist secret
+            "TELEGRAM_BOT_ID": "42",
+            "TELEGRAM_TENANT_ID": str(uuid4()),
+            "CALLBACK_SIGNING_KEY": "local-callback-key",  # pragma: allowlist secret
+        }
+    )
+    if mode == "webhook":
+        values.update(
+            {
+                "TELEGRAM_WEBHOOK_SECRET": "local_webhook_secret",  # pragma: allowlist secret
+                "TELEGRAM_WEBHOOK_PATH_SECRET": "local_path_secret",  # pragma: allowlist secret
+                "TELEGRAM_WEBHOOK_BASE_URL": "https://demo.example",
+            }
+        )
+    return values
+
+
+def test_valid_telegram_webhook_and_polling_configuration() -> None:
+    webhook = load_settings(telegram_environment())
+    assert webhook.telegram.bot_id == 42
+    assert webhook.telegram.delivery_mode == "webhook"
+    assert not webhook.telegram.polling_enabled
+    assert webhook.telegram.update_max_bytes == 1_048_576
+
+    polling = load_settings(telegram_environment(mode="polling"))
+    assert polling.telegram.polling_enabled
+    assert polling.telegram.webhook_secret is None
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "TELEGRAM_BOT_ID",
+        "TELEGRAM_TENANT_ID",
+        "CALLBACK_SIGNING_KEY",
+        "TELEGRAM_WEBHOOK_SECRET",
+        "TELEGRAM_WEBHOOK_PATH_SECRET",
+        "TELEGRAM_WEBHOOK_BASE_URL",
+    ],
+)
+def test_enabled_telegram_requires_complete_tenant_bound_context(field: str) -> None:
+    values = telegram_environment()
+    values.pop(field)
+    with pytest.raises(ConfigurationError, match=field):
+        load_settings(values)
+
+
+def test_telegram_rejects_invalid_modes_secrets_and_limits() -> None:
+    values = telegram_environment()
+    values["TELEGRAM_DELIVERY_MODE"] = "both"
+    with pytest.raises(ConfigurationError, match="TELEGRAM_DELIVERY_MODE"):
+        load_settings(values)
+    values = telegram_environment()
+    values["TELEGRAM_WEBHOOK_SECRET"] = "contains spaces"  # pragma: allowlist secret
+    with pytest.raises(ConfigurationError, match="TELEGRAM_WEBHOOK_SECRET"):
+        load_settings(values)
+    values = telegram_environment()
+    values["TELEGRAM_CALLBACK_EXPIRY_SECONDS"] = "1"
+    with pytest.raises(ConfigurationError, match="TELEGRAM_CALLBACK_EXPIRY_SECONDS"):
+        load_settings(values)
+
+
 def test_disabled_integrations_do_not_require_credentials() -> None:
     values = valid_environment()
     values["INTERNAL_API_ENABLED"] = "false"

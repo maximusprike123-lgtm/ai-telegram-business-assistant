@@ -51,6 +51,7 @@ async def test_schema_has_required_extensions_tables_and_constraints(
             "audit_events",
             "outbox_events",
             "tenant_public_profiles",
+            "telegram_updates",
         } <= tables
         assert exclusion == 1
     finally:

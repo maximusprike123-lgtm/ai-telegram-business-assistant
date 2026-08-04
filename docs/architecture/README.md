@@ -44,9 +44,14 @@ workflow routing.
 
 Phase 7 adds an optional provider-neutral runtime behind application ports. Its pipeline is strict
 provider schema validation, application allowlists, a task business validator, confidence policy,
-and only then an advisory result. Telegram accepts three read-only advisory routes; every failure
+and only then an advisory result. Telegram accepts four read-only advisory routes; every failure
 or other intent returns to deterministic behavior. AI operation telemetry is metadata-only, and
 no tool-calling surface exists in this phase.
+
+Phase 8 adds `application.knowledge` policies and ports. Infrastructure performs embedding and
+tenant-filtered PostgreSQL lexical/vector search, while the application owns deterministic
+chunking, evidence thresholds, citations, extractive answers, and fallback. Retrieved content is
+untrusted and cannot mutate workflows or bypass publication and tenant filters.
 
 ## Decision records
 

@@ -22,7 +22,9 @@ knowledge answers, lead qualification, booking, and human handoff.
   sessions, business-hours-aware human handoff, staff lifecycle API, and Telegram integration
 - Phase 7: provider-neutral AI runtime, strict structured outputs, versioned prompts/model policy,
   confidence gating, metadata-only telemetry, Responses adapter, and deterministic degradation
-- Phases 8–13: not implemented
+- Phase 8: tenant-scoped Markdown/FAQ ingestion, OpenAI embeddings boundary, pgvector hybrid
+  retrieval, publication/effective-date filters, evidence gating, citations, and safe fallback
+- Phases 9–13: not implemented
 
 The current code is deliberately not a chatbot. Consequential operations belong to validated
 application and domain workflows; future AI output remains advisory until it passes structured,
@@ -42,7 +44,7 @@ presentation -> application <- infrastructure
 ```
 
 Dependencies point inward. Domain and application modules cannot import FastAPI, aiogram,
-SQLAlchemy, Redis, Celery, or OpenAI SDK types. PostgreSQL/pgvector will be authoritative,
+SQLAlchemy, Redis, Celery, or OpenAI SDK types. PostgreSQL/pgvector is authoritative,
 Redis will hold non-authoritative short-lived state. Phase 2 creates the transactional outbox
 schema but intentionally defers dispatch workers to Phase 10.
 
@@ -110,6 +112,8 @@ Consent, qualification, lead scoring, and handoff operations are in the
 [Phase 6 leads and handoff runbook](docs/operations/phase-6-leads-handoff.md).
 Provider configuration, safe degradation, privacy, and telemetry operations are in the
 [Phase 7 AI runtime runbook](docs/operations/phase-7-ai-runtime.md).
+Knowledge ingestion, publication, hybrid retrieval, citations, and rollback are in the
+[Phase 8 knowledge runbook](docs/operations/phase-8-knowledge.md).
 
 ## Repository layout
 
@@ -141,6 +145,7 @@ docs/
 - [Phase 5 traceability](docs/phase-5-traceability.md)
 - [Phase 6 traceability](docs/phase-6-traceability.md)
 - [Phase 7 traceability](docs/phase-7-traceability.md)
+- [Phase 8 traceability](docs/phase-8-traceability.md)
 
 The implementation specification remains the source of truth. Documentation in this repository
 records decisions and implementation status; it does not replace the specification.

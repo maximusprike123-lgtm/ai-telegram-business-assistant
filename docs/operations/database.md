@@ -1,4 +1,4 @@
-# Database runbook through Phase 7
+# Database runbook through Phase 8
 
 Phase 2 supports PostgreSQL only. Use a disposable database for tests; migration tests remove and
 recreate the application schema. The database role needs permission to create the `vector` and
@@ -33,6 +33,10 @@ and extends them through reversible constraints and indexes.
 Revision `0006_phase7` adds metadata-only AI operation telemetry. It records tenant/conversation
 identity, correlation and version identifiers, status, latency, token counts, cost estimate, and a
 safe failure code. Prompts, provider payloads, customer text, and generated text are not stored.
+Revision `0007_phase8` preserves normalized source text and adds embedding model, dimensions, and
+instruction-risk metadata to knowledge chunks. A database check keeps vectors and their typed
+metadata consistent. Hybrid search continues to use the existing GIN full-text index and exact
+pgvector cosine search; approximate indexing remains benchmark-driven.
 
 ## Seed the fictional demo
 
@@ -54,6 +58,8 @@ holiday policy.
 The seed also publishes one English `service_request` qualification schema with fictional consent,
 score, and structured vehicle-safety routing rules. It does not configure real notification
 recipients or approved production emergency policy.
+It publishes one English fictional same-day-repair FAQ without making a guarantee. The seed has no
+provider credential, so this fixed FAQ is lexical-only; application-ingested sources carry vectors.
 
 ## Test
 

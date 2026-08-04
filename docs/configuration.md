@@ -31,14 +31,14 @@ secrets do not belong in tenant configuration.
 | Controls | upload, retention, rate limits | environment defaults, then tenant policy |
 | Admin bootstrap | local operator token | local demo only |
 
-## Implemented groups through Phase 7
+## Implemented groups through Phase 8
 
 The loader validates application identity and public URL, PostgreSQL connectivity and bounded
 pool settings, internal API bind/timeout settings, tenant-bound API credentials, Telegram,
 Redis, Celery and OpenAI enablement, observability, and feature switches. An integration's
 credential or URL is required only when that integration is enabled. Telegram and the optional AI
-runtime are implemented but disabled by default. Redis, Celery, RAG, and automatic notification
-delivery remain unimplemented/off.
+runtime and Phase 8 retrieval are implemented but disabled by default. Redis, Celery, and automatic
+notification delivery remain unimplemented/off.
 
 Enabled Telegram requires a token, matching numeric bot ID, tenant UUID, callback signing key, and
 one delivery mode. Webhook mode additionally requires a public base URL plus independent header and
@@ -86,7 +86,8 @@ an unused compatibility setting; Phase 7 deliberately implements no tool calling
 
 Supported Phase 3 roles are `owner`, `manager`, `agent`, `viewer`, and `knowledge_editor`.
 Owner/manager/agent/viewer can read profile, catalog, and schedules. `knowledge_editor` has no
-Phase 3 read grant, making authorization tests meaningful without introducing later admin flows.
+Phase 3 profile/catalog/schedule grant. Phase 8 adds knowledge read access for all supported roles
+and knowledge writes only for owner, manager, and knowledge-editor roles.
 
 ## Database variables
 
@@ -103,7 +104,17 @@ switches, bad roles, bot/token mismatch at composition, and out-of-range numeric
 Telegram polling is rejected in production and Telegram webhook URLs must use HTTPS there. Errors
 name the setting and a safe reason without echoing its value. The Phase 7 policy catalog validates
 task, prompt, schema, provider, and model compatibility before a provider call. Phase 3 already
-requires and bounds embedding dimensions when RAG is enabled; retrieval remains deferred.
+requires and bounds embedding dimensions when RAG is enabled. Phase 8 also validates chunk size
+and overlap, candidate/result limits, a minimum relevance floor, and customer answer length.
+
+## Phase 8 knowledge retrieval
+
+`FEATURE_RAG_ENABLED=true` requires AI, OpenAI credentials, `OPENAI_EMBEDDING_MODEL`, and
+`EMBEDDING_DIMENSIONS`. `KNOWLEDGE_CHUNK_MAX_TOKENS` and
+`KNOWLEDGE_CHUNK_OVERLAP_TOKENS` control deterministic ingestion. `RAG_CANDIDATE_LIMIT`,
+`RAG_RESULT_LIMIT`, `RAG_MIN_RELEVANCE`, and `RAG_MAX_ANSWER_CHARACTERS` bound retrieval and
+evidence presentation. Model names and dimensions remain deployment policy; changing either does
+not silently reuse incompatible vectors.
 
 ## Secret handling
 

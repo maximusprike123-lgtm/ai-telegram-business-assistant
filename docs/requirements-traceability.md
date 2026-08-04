@@ -15,9 +15,9 @@ not acceptance by itself.
 | FR-007 | 2, 4 | Implemented: durable tenant/bot/update processing lifecycle and duplicate/concurrency tests |
 | FR-010 | 4 | Implemented: deterministic command, menu, callback, and unknown-text routing |
 | FR-011 | 3, 4 | Implemented: validated profile/catalog lookup exposed through Telegram navigation |
-| FR-012 | 8 | Planned: published tenant-scoped retrieval |
-| FR-013 | 7, 8 | Phase 7 confidence threshold, provider refusal, and safe fallback implemented; retrieval evidence remains Phase 8 |
-| FR-014 | 2, 8 | Citation value object and versioned knowledge lineage schema implemented; answer use planned |
+| FR-012 | 8 | Implemented: tenant/locale/ready/publication/effective-date/injection filters precede lexical and vector ranking |
+| FR-013 | 7, 8 | Implemented: model confidence plus retrieval evidence gates and deterministic refusal/handoff fallback |
+| FR-014 | 2, 8 | Partially implemented: answer evidence carries document/version/chunk/score/checksum citations and customer-safe labels; durable association with stored outbound messages awaits message persistence |
 | FR-015 | 6, 7 | Implemented: structured safety rules plus allowlisted free-text risk classification with deterministic safe fallback |
 | FR-020 | 3, 4 | Implemented: active catalog category/service navigation with bounded signed pagination |
 | FR-021 | 3 | Implemented: localized service detail, duration, and public price query |
@@ -57,9 +57,9 @@ not acceptance by itself.
 | FR-076 | 2, 6, 10 | Implemented: every staff takeover/control action appends a durable audit event |
 | FR-080 | 10 | Planned: notification subscriptions |
 | FR-081 | 10, 11 | PII-minimization ADR accepted; payload implementation planned |
-| FR-082 | 3, 6, 8, 10 | Qualification schema publish and handoff operations added; remaining admin resources stay phased |
-| FR-083 | 3, 6, 8, 11 | Tenant-derived qualification/handoff RBAC and input validation implemented; full IdP remains deferred |
-| FR-084 | 1, 2, 8 | Knowledge lifecycle/status persistence and chunk schema implemented; ingestion planned |
+| FR-082 | 3, 6, 8, 10 | Qualification plus Markdown/FAQ knowledge ingest/publish/archive/test-answer API implemented; remaining admin resources stay phased |
+| FR-083 | 3, 6, 8, 11 | Tenant-derived qualification/handoff/knowledge RBAC and input validation implemented; full IdP remains deferred |
+| FR-084 | 1, 2, 8 | Implemented for synchronous Markdown/FAQ: lifecycle, deterministic chunking, embedding, ready/publish/archive status |
 | FR-090 | 10 | Domain event envelope implemented; analytics catalog/projection planned |
 | FR-091 | 10, 11 | Tenant event context implemented; safe dimensions planned |
 | FR-092 | 10, 11 | Planned: protected aggregate endpoints |
@@ -71,10 +71,10 @@ not acceptance by itself.
 | Clean Architecture (6.4, 7.2) | Architecture import tests and ADR 0002 | Every phase |
 | Tenant isolation (3.3) | Tenant-filtered repositories, composite FKs, integration tests | Every phase |
 | UTC/IANA time (6.4, 8.2) | Phase 3 tenant-local schedule engine, DST policy, aware API inputs | 5 slots |
-| PostgreSQL/pgvector (7.3, 9) | Async adapter, initial migration, extensions, vector/full-text columns | 8 retrieval |
+| PostgreSQL/pgvector (7.3, 9) | Tenant-filtered hybrid full-text/cosine retrieval with typed embedding metadata | Index benchmarking |
 | Transactional outbox (7.3) | Tenant-scoped durable schema in same database | 10 delivery |
 | Privacy/logging (15, 17) | ADR 0004, environment policy, secret scan | 9, 11 |
-| AI gateway/safety (7.4, 12, 16) | Provider-neutral port, versioned prompts/policies, strict schemas, application validation, metadata-only telemetry | 8 evidence grounding |
+| AI gateway/safety (7.4, 12, 16) | Provider-neutral generation/embedding ports, strict validation, evidence grounding, metadata-only telemetry | Continued evaluation |
 | CI quality baseline (21, 22) | Ruff, mypy, API/unit/PostgreSQL tests, coverage, build, secret scan | Expanded each phase |
 | Docker/runtime (19) | Explicitly deferred | 12 |
 | Telegram delivery/idempotency (10, 16, 18) | Authenticated webhook, development polling, durable lifecycle, safe callbacks/logs | 10 outbound outbox, 11 hardening |

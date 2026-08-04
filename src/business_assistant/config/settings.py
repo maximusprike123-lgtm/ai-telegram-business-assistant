@@ -4,6 +4,7 @@ import os
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from urllib.parse import urlsplit
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -35,6 +36,30 @@ def _integer(values: Mapping[str, str], name: str, default: int, minimum: int, m
     except ValueError as exc:
         raise ConfigurationError(name, "must be an integer") from exc
     if not minimum <= value <= maximum:
+        raise ConfigurationError(name, f"must be between {minimum} and {maximum}")
+    return value
+
+
+def _number(
+    values: Mapping[str, str], name: str, default: float, minimum: float, maximum: float
+) -> float:
+    try:
+        value = float(_text(values, name, str(default)))
+    except ValueError as exc:
+        raise ConfigurationError(name, "must be a number") from exc
+    if not minimum <= value <= maximum:
+        raise ConfigurationError(name, f"must be between {minimum} and {maximum}")
+    return value
+
+
+def _decimal(
+    values: Mapping[str, str], name: str, default: str, minimum: Decimal, maximum: Decimal
+) -> Decimal:
+    try:
+        value = Decimal(_text(values, name, default))
+    except InvalidOperation as exc:
+        raise ConfigurationError(name, "must be a decimal number") from exc
+    if not value.is_finite() or not minimum <= value <= maximum:
         raise ConfigurationError(name, f"must be between {minimum} and {maximum}")
     return value
 
@@ -156,6 +181,23 @@ class OpenAIConfig:
     embedding_dimensions: int | None
     max_tool_iterations: int
     max_output_tokens: int
+    base_url: str
+
+
+@dataclass(frozen=True, slots=True)
+class AIRuntimeConfig:
+    enabled: bool
+    provider: str
+    router_model: str | None
+    response_model: str | None
+    temperature: float | None
+    timeout_seconds: float
+    max_retries: int
+    confidence_threshold: float
+    structured_output_mode: str
+    max_output_tokens: int
+    input_cost_per_million: Decimal
+    output_cost_per_million: Decimal
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,6 +235,7 @@ class RuntimeSettings:
     redis: RedisConfig
     celery: CeleryConfig
     openai: OpenAIConfig
+    ai: AIRuntimeConfig
     observability: ObservabilityConfig
     features: FeatureConfig
     limits: LimitConfig
@@ -317,13 +360,25 @@ def load_settings(environ: Mapping[str, str] | None = None) -> RuntimeSettings:
     celery_enabled = _boolean(values, "CELERY_ENABLED", False)
     celery_results_enabled = _boolean(values, "CELERY_RESULTS_ENABLED", False)
     openai_enabled = _boolean(values, "OPENAI_ENABLED", False)
+    legacy_ai_enabled = _boolean(values, "FEATURE_AI_ENABLED", False)
+    ai_enabled = _boolean(values, "AI_ENABLED", legacy_ai_enabled)
+    if (
+        "AI_ENABLED" in values
+        and "FEATURE_AI_ENABLED" in values
+        and ai_enabled != legacy_ai_enabled
+    ):
+        raise ConfigurationError("AI_ENABLED", "conflicts with FEATURE_AI_ENABLED")
+    ai_provider = _text(values, "AI_PROVIDER", "openai").lower()
+    if ai_enabled and ai_provider not in {"openai"}:
+        raise ConfigurationError("AI_PROVIDER", "has no configured provider adapter")
+    openai_enabled = openai_enabled or (ai_enabled and ai_provider == "openai")
     features = FeatureConfig(
-        ai_enabled=_boolean(values, "FEATURE_AI_ENABLED", False),
+        ai_enabled=ai_enabled,
         rag_enabled=_boolean(values, "FEATURE_RAG_ENABLED", False),
         automatic_handoff_enabled=_boolean(values, "FEATURE_AUTOMATIC_HANDOFF_ENABLED", False),
     )
     if features.ai_enabled and not openai_enabled:
-        raise ConfigurationError("FEATURE_AI_ENABLED", "requires OPENAI_ENABLED")
+        raise ConfigurationError("AI_ENABLED", "requires an enabled provider")
     if features.rag_enabled and (not features.ai_enabled or not openai_enabled):
         raise ConfigurationError("FEATURE_RAG_ENABLED", "requires AI and OpenAI to be enabled")
     log_level = _text(values, "LOG_LEVEL", "INFO").upper()
@@ -341,18 +396,34 @@ def load_settings(environ: Mapping[str, str] | None = None) -> RuntimeSettings:
         if embedding_dimensions_text
         else None
     )
-    router_model = _text(values, "OPENAI_ROUTER_MODEL") or None
-    response_model = _text(values, "OPENAI_RESPONSE_MODEL") or None
+    router_model = _text(values, "AI_ROUTER_MODEL", _text(values, "OPENAI_ROUTER_MODEL")) or None
+    response_model = (
+        _text(values, "AI_RESPONSE_MODEL", _text(values, "OPENAI_RESPONSE_MODEL")) or None
+    )
     embedding_model = _text(values, "OPENAI_EMBEDDING_MODEL") or None
     openai_api_key = _secret(
         values, "OPENAI_API_KEY", required=openai_enabled, production=production
     )
     if openai_enabled and (router_model is None or response_model is None):
-        raise ConfigurationError("OPENAI_ROUTER_MODEL", "router and response models are required")
+        raise ConfigurationError("AI_ROUTER_MODEL", "router and response models are required")
     if features.rag_enabled and (embedding_model is None or embedding_dimensions is None):
         raise ConfigurationError(
             "OPENAI_EMBEDDING_MODEL", "embedding model and dimensions are required for RAG"
         )
+    structured_output_mode = _text(values, "AI_STRUCTURED_OUTPUT_MODE", "strict_json_schema")
+    if structured_output_mode != "strict_json_schema":
+        raise ConfigurationError("AI_STRUCTURED_OUTPUT_MODE", "must be strict_json_schema")
+    openai_base_url = (
+        _url(
+            values,
+            "OPENAI_BASE_URL",
+            schemes=frozenset({"http", "https"}),
+            required=False,
+        )
+        or "https://api.openai.com/v1"
+    )
+    if production and openai_enabled and not openai_base_url.startswith("https://"):
+        raise ConfigurationError("OPENAI_BASE_URL", "must use HTTPS in production")
     admin_token = _secret(values, "ADMIN_BOOTSTRAP_TOKEN", required=False, production=production)
     if production and admin_token is not None:
         raise ConfigurationError("ADMIN_BOOTSTRAP_TOKEN", "is local-development only")
@@ -432,6 +503,25 @@ def load_settings(environ: Mapping[str, str] | None = None) -> RuntimeSettings:
             embedding_dimensions,
             _integer(values, "AI_MAX_TOOL_ITERATIONS", 4, 1, 16),
             _integer(values, "AI_MAX_OUTPUT_TOKENS", 800, 64, 32768),
+            openai_base_url,
+        ),
+        ai=AIRuntimeConfig(
+            ai_enabled,
+            ai_provider,
+            router_model,
+            response_model,
+            (
+                _number(values, "AI_TEMPERATURE", 0, 0, 2)
+                if _text(values, "AI_TEMPERATURE", "0").lower() != "none"
+                else None
+            ),
+            _number(values, "AI_TIMEOUT_SECONDS", 8, 0.1, 120),
+            _integer(values, "AI_MAX_RETRIES", 2, 0, 5),
+            _number(values, "AI_CONFIDENCE_THRESHOLD", 0.8, 0, 1),
+            structured_output_mode,
+            _integer(values, "AI_MAX_OUTPUT_TOKENS", 800, 64, 32768),
+            _decimal(values, "AI_INPUT_COST_PER_MILLION", "0", Decimal(0), Decimal(1_000_000)),
+            _decimal(values, "AI_OUTPUT_COST_PER_MILLION", "0", Decimal(0), Decimal(1_000_000)),
         ),
         observability=ObservabilityConfig(
             log_level,

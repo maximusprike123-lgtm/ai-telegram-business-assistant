@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import cast
 
+import httpx
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -26,6 +27,7 @@ from business_assistant.application.scheduling import (
 )
 from business_assistant.application.telegram import ResolveTelegramIdentity, TelegramBotBinding
 from business_assistant.application.tenants import GetTenantPublicProfile
+from business_assistant.bootstrap.ai import build_ai_router
 from business_assistant.config import ConfigurationError, RuntimeSettings, load_settings
 from business_assistant.domain.shared import TenantId
 from business_assistant.infrastructure.observability import configure_logging
@@ -67,6 +69,7 @@ class Phase4Components:
     dispatcher: Dispatcher
     binding: TelegramBotBinding
     update_store: SQLAlchemyTelegramUpdateStore
+    ai_client: httpx.AsyncClient | None
 
 
 def _require_telegram(settings: RuntimeSettings) -> tuple[str, int, TenantId, str]:
@@ -108,13 +111,19 @@ def build_phase4_components(settings: RuntimeSettings) -> Phase4Components:
     clock = UTCClock()
     bot = Bot(token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     binding = TelegramBotBinding(bot_id, tenant_id_value)
-    renderer = TelegramRenderer()
+    renderer = TelegramRenderer(ai_enabled=settings.ai.enabled)
     codec = SignedCallbackCodec(
         callback_key,
         version=settings.telegram.callback_version,
         expiry_seconds=settings.telegram.callback_expiry_seconds,
         clock=clock,
     )
+    ai_client = (
+        httpx.AsyncClient(timeout=httpx.Timeout(settings.ai.timeout_seconds))
+        if settings.ai.enabled
+        else None
+    )
+    ai_router = build_ai_router(settings, session_factory, ai_client)
     navigation = TelegramNavigation(
         TelegramNavigationServices(
             GetTenantPublicProfile(typed_factory, clock),
@@ -132,6 +141,7 @@ def build_phase4_components(settings: RuntimeSettings) -> Phase4Components:
                 schema_code="service_request",
             ),
             HandoffApplication(SQLAlchemyHandoffStore(session_factory), clock),
+            ai_router,
         )
     )
     identity_store = SQLAlchemyTelegramIdentityStore(session_factory)
@@ -156,6 +166,7 @@ def build_phase4_components(settings: RuntimeSettings) -> Phase4Components:
         build_dispatcher(runtime),
         binding,
         update_store,
+        ai_client,
     )
 
 
@@ -251,6 +262,8 @@ def build_phase4_app(settings: RuntimeSettings) -> FastAPI:
         )
 
     async def close_runtime() -> None:
+        if components.ai_client is not None:
+            await components.ai_client.aclose()
         await components.bot.session.close()
         await components.engine.dispose()
 

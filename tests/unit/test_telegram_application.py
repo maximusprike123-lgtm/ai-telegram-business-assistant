@@ -5,6 +5,7 @@ import pytest
 from tests.helpers_phase3 import phase3_fixture
 from tests.unit.test_configuration import telegram_environment, valid_environment
 
+from business_assistant.application.ai import AdvisoryRoute
 from business_assistant.application.catalog import GetService, ListServiceCategories, ListServices
 from business_assistant.application.common.errors import CategoryNotFoundError
 from business_assistant.application.scheduling import (
@@ -86,18 +87,17 @@ async def test_navigation_calls_existing_validated_queries_and_renders_pages() -
         return uow
 
     renderer = TelegramRenderer()
-    navigation = TelegramNavigation(
-        TelegramNavigationServices(
-            GetTenantPublicProfile(factory, clock),
-            ListServiceCategories(factory),
-            ListServices(factory),
-            GetService(factory),
-            GetBusinessHours(factory),
-            GetBusinessStatus(factory, clock),
-            GetNextOpening(factory, clock),
-            renderer,
-        )
+    nav_services = TelegramNavigationServices(
+        GetTenantPublicProfile(factory, clock),
+        ListServiceCategories(factory),
+        ListServices(factory),
+        GetService(factory),
+        GetBusinessHours(factory),
+        GetBusinessStatus(factory, clock),
+        GetNextOpening(factory, clock),
+        renderer,
     )
+    navigation = TelegramNavigation(nav_services)
     identity = TelegramIdentity(
         principal.tenant_id, CustomerId.new(), ConversationId.new(), Locale.EN
     )
@@ -112,6 +112,20 @@ async def test_navigation_calls_existing_validated_queries_and_renders_pages() -
     assert "Business hours" in hours.text
     with pytest.raises(CategoryNotFoundError):
         await navigation.category(identity, CategoryId.new())
+
+    class HoursRouter:
+        async def route(self, identity, text, *, correlation_id):
+            return AdvisoryRoute.HOURS
+
+    routed = TelegramNavigation(
+        replace(nav_services, ai_router=HoursRouter())  # type: ignore[arg-type]
+    )
+    assert (
+        "Business hours"
+        in (
+            await routed.route_free_text(identity, "When are you open?", update_key="fixture:1")
+        ).text
+    )
 
 
 def test_telegram_binding_requires_positive_bot_id() -> None:

@@ -1,7 +1,16 @@
 import ast
 from pathlib import Path
 
-FORBIDDEN_FRAMEWORKS = {"aiogram", "fastapi", "sqlalchemy", "celery", "redis", "openai"}
+FORBIDDEN_FRAMEWORKS = {
+    "aiogram",
+    "anthropic",
+    "celery",
+    "fastapi",
+    "httpx",
+    "openai",
+    "redis",
+    "sqlalchemy",
+}
 
 
 def imported_roots(path: Path) -> set[str]:

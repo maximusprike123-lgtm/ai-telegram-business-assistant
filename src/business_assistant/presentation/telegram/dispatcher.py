@@ -301,9 +301,13 @@ def build_dispatcher(runtime: TelegramRuntime) -> Dispatcher:
         except (ApplicationError, ValueError):
             page = runtime.renderer.booking_input_invalid()
         if page is None:
-            page = await runtime.navigation.unsupported(
-                telegram_identity,
-                update_key=f"telegram-unsupported:{message.message_id}",
+            update_key = f"telegram-unsupported:{message.message_id}"
+            page = (
+                await runtime.navigation.unsupported(telegram_identity, update_key=update_key)
+                if message.text is None
+                else await runtime.navigation.route_free_text(
+                    telegram_identity, message.text, update_key=update_key
+                )
             )
             await runtime.delivery.send(message.chat.id, telegram_identity.tenant_id, page)
         else:

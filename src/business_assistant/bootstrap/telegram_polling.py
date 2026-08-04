@@ -21,6 +21,8 @@ async def run() -> None:
             handle_as_tasks=True,
         )
     finally:
+        if components.ai_client is not None:
+            await components.ai_client.aclose()
         await components.bot.session.close()
         await components.engine.dispose()
 

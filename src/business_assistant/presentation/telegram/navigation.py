@@ -1,7 +1,9 @@
 """Validated Telegram presentation orchestration over Phase 3 application queries."""
 
 from dataclasses import dataclass
+from uuid import NAMESPACE_URL, uuid5
 
+from business_assistant.application.ai import AdvisoryRoute, AITextRouter
 from business_assistant.application.bookings import BookingApplication
 from business_assistant.application.catalog import GetService, ListServiceCategories, ListServices
 from business_assistant.application.common.errors import CategoryNotFoundError
@@ -44,6 +46,7 @@ class TelegramNavigationServices:
     bookings: BookingApplication | None = None
     qualifications: QualificationApplication | None = None
     handoffs: HandoffApplication | None = None
+    ai_router: AITextRouter | None = None
 
 
 class TelegramNavigation:
@@ -291,6 +294,24 @@ class TelegramNavigation:
         if self._services.handoffs is None:
             return self._services.renderer.unknown()
         return await self.human_help(identity, update_key=update_key)
+
+    async def route_free_text(
+        self, identity: TelegramIdentity, text: str, *, update_key: str
+    ) -> RenderedMessage:
+        if self._services.ai_router is None:
+            return await self.unsupported(identity, update_key=update_key)
+        route = await self._services.ai_router.route(
+            identity,
+            text,
+            correlation_id=uuid5(NAMESPACE_URL, f"business-assistant:{update_key}"),
+        )
+        if route is AdvisoryRoute.HOME:
+            return await self.home(identity)
+        if route is AdvisoryRoute.CATALOG:
+            return await self.catalog(identity)
+        if route is AdvisoryRoute.HOURS:
+            return await self.hours(identity)
+        return await self.unsupported(identity, update_key=update_key)
 
     async def paused(self, identity: TelegramIdentity) -> HandoffView | None:
         if self._services.handoffs is None:

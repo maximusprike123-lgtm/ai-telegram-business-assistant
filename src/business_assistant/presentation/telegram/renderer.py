@@ -49,6 +49,9 @@ def _button(
 
 
 class TelegramRenderer:
+    def __init__(self, *, ai_enabled: bool = False) -> None:
+        self._ai_enabled = ai_enabled
+
     def home(self, profile: TenantPublicProfileDTO) -> RenderedMessage:
         status = "Open now" if profile.status.open_now else "Closed now"
         contact = []
@@ -59,6 +62,12 @@ class TelegramRenderer:
         if profile.public_email:
             contact.append(f"<b>Email:</b> {_safe(profile.public_email)}")
         contact_block = "\n" + "\n".join(contact) + "\n" if contact else "\n"
+        ai_notice = (
+            "Free text may be classified by a configured AI provider, but validated application "
+            "rules remain authoritative."
+            if self._ai_enabled
+            else "AI is not enabled."
+        )
         text = (
             f"<b>{_safe(profile.name)}</b>\n"
             f"{_safe(profile.description)}\n\n"
@@ -66,7 +75,7 @@ class TelegramRenderer:
             f"({_safe(profile.timezone)})\n"
             f"{contact_block}\n"
             "This is a fictional portfolio demo. It can show verified business information, "
-            "and create fictional demo appointments. AI is not enabled. It stores numeric Telegram "
+            f"and create fictional demo appointments. {ai_notice} It stores numeric Telegram "
             "identifiers for continuity and duplicate protection; use Privacy for details."
         )
         return RenderedMessage(
@@ -185,21 +194,35 @@ class TelegramRenderer:
         )
 
     def help(self) -> RenderedMessage:
+        free_text = (
+            "Free-form text uses advisory AI classification with deterministic validation and "
+            "fallback."
+            if self._ai_enabled
+            else (
+                "Free-form questions receive a safe, deterministic reply because AI is not enabled."
+            )
+        )
         return RenderedMessage(
             "<b>Help</b>\nUse the menu to browse services, book or manage a fictional demo "
             "appointment, and see opening times. /cancel clears only the active booking flow. "
-            "Free-form questions receive a safe, "
-            "deterministic reply because AI is not enabled.",
+            f"{free_text}",
             ((_button("Home", CallbackAction.HOME),),),
             show_reply_menu=True,
         )
 
     def privacy(self) -> RenderedMessage:
+        ai_processing = (
+            " When AI is enabled, free-form text is sent to the configured provider for bounded "
+            "classification. The application stores metadata such as model, latency, tokens, and "
+            "outcome—not prompts, message text, or provider response bodies."
+            if self._ai_enabled
+            else ""
+        )
         return RenderedMessage(
             "<b>Privacy notice · demo-v1</b>\nThis fictional demo stores Telegram numeric user "
             "and chat identifiers to keep a tenant-scoped conversation and prevent duplicate "
             "updates. It does not store message bodies, usernames, profile names, or raw updates. "
-            "Do not send sensitive or real customer information.",
+            f"Do not send sensitive or real customer information.{ai_processing}",
             ((_button("Home", CallbackAction.HOME),),),
         )
 
@@ -500,10 +523,14 @@ class TelegramRenderer:
         )
 
     def unknown(self) -> RenderedMessage:
+        ending = (
+            "The request could not be safely routed, so no AI-proposed action was executed."
+            if self._ai_enabled
+            else "AI and free-form business answers are not enabled."
+        )
         return RenderedMessage(
             "Use the menu to browse verified services, book or manage a fictional demo "
-            "appointment, view business hours, or get help. AI and free-form business answers "
-            "are not enabled.",
+            f"appointment, view business hours, or get help. {ending}",
             ((_button("Home", CallbackAction.HOME),),),
             show_reply_menu=True,
         )

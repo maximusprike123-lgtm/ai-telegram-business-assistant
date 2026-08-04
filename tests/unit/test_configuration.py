@@ -185,8 +185,8 @@ def test_production_rejects_long_placeholder_secret() -> None:
 
 def test_ai_feature_requires_enabled_provider() -> None:
     values = valid_environment()
-    values["FEATURE_AI_ENABLED"] = "true"
-    with pytest.raises(ConfigurationError, match="FEATURE_AI_ENABLED"):
+    values["AI_ENABLED"] = "true"
+    with pytest.raises(ConfigurationError, match="OPENAI_API_KEY"):
         load_settings(values)
 
 
@@ -208,6 +208,59 @@ def test_enabled_openai_and_rag_require_explicit_model_policy() -> None:
         load_settings(values)
     values.update({"OPENAI_EMBEDDING_MODEL": "embedding-fixture", "EMBEDDING_DIMENSIONS": "1536"})
     assert load_settings(values).openai.embedding_dimensions == 1536
+
+
+def test_provider_neutral_ai_policy_is_externalized_and_legacy_aliases_remain_compatible() -> None:
+    values = valid_environment()
+    values.update(
+        {
+            "AI_ENABLED": "true",
+            "AI_PROVIDER": "openai",
+            "AI_ROUTER_MODEL": "router-fixture",
+            "AI_RESPONSE_MODEL": "response-fixture",
+            "AI_TIMEOUT_SECONDS": "7.5",
+            "AI_MAX_RETRIES": "3",
+            "AI_CONFIDENCE_THRESHOLD": "0.85",
+            "AI_INPUT_COST_PER_MILLION": "1.25",
+            "AI_OUTPUT_COST_PER_MILLION": "5",
+            "OPENAI_API_KEY": "local-openai-fixture",  # pragma: allowlist secret
+        }
+    )
+    settings = load_settings(values)
+    assert settings.ai.enabled and settings.ai.provider == "openai"
+    assert settings.ai.timeout_seconds == 7.5
+    assert settings.ai.confidence_threshold == 0.85
+    assert settings.openai.router_model == "router-fixture"
+
+    values["FEATURE_AI_ENABLED"] = "false"
+    with pytest.raises(ConfigurationError, match="conflicts"):
+        load_settings(values)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("AI_PROVIDER", "unknown"),
+        ("AI_TIMEOUT_SECONDS", "0"),
+        ("AI_MAX_RETRIES", "6"),
+        ("AI_CONFIDENCE_THRESHOLD", "1.1"),
+        ("AI_STRUCTURED_OUTPUT_MODE", "json_object"),
+        ("AI_INPUT_COST_PER_MILLION", "-1"),
+    ],
+)
+def test_enabled_ai_rejects_invalid_provider_and_policy(field: str, value: str) -> None:
+    values = valid_environment()
+    values.update(
+        {
+            "AI_ENABLED": "true",
+            "AI_ROUTER_MODEL": "router-fixture",
+            "AI_RESPONSE_MODEL": "response-fixture",
+            "OPENAI_API_KEY": "local-openai-fixture",  # pragma: allowlist secret
+            field: value,
+        }
+    )
+    with pytest.raises(ConfigurationError, match=field):
+        load_settings(values)
 
 
 def test_celery_result_backend_is_conditional() -> None:

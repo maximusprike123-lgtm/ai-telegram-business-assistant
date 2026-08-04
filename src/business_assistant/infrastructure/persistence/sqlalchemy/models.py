@@ -1,6 +1,7 @@
 """Persistence-only ORM rows for the Phase 2 PostgreSQL schema."""
 
 from datetime import date, datetime, time
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -16,6 +17,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     Time,
@@ -1128,6 +1130,53 @@ class KnowledgeChunkRow(Base):
         "metadata", JSONB, nullable=False, default=dict
     )
     checksum: Mapped[str] = mapped_column(String(128), nullable=False)
+
+
+class AIOperationRow(Base):
+    __tablename__ = "ai_operations"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "conversation_id"],
+            ["conversations.tenant_id", "conversations.id"],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "task IN ('intent','extraction','classification','rewrite','summary')",
+            name="task_allowed",
+        ),
+        CheckConstraint(
+            "status IN ('success','fallback','disabled','cancelled')",
+            name="status_allowed",
+        ),
+        CheckConstraint("attempts >= 0", name="attempts_nonnegative"),
+        CheckConstraint("latency_ms >= 0", name="latency_nonnegative"),
+        CheckConstraint("input_tokens >= 0 AND output_tokens >= 0", name="tokens_nonnegative"),
+        CheckConstraint("estimated_cost >= 0", name="cost_nonnegative"),
+        CheckConstraint("prompt_version >= 0", name="prompt_version_nonnegative"),
+        Index("ix_ai_operations_tenant_created", "tenant_id", "created_at"),
+        Index("ix_ai_operations_tenant_conversation", "tenant_id", "conversation_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    conversation_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    correlation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    task: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider: Mapped[str] = mapped_column(String(100), nullable=False)
+    model: Mapped[str] = mapped_column(String(200), nullable=False)
+    prompt_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    prompt_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    estimated_cost: Mapped[Decimal] = mapped_column(Numeric(20, 10), nullable=False)
+    failure_code: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class AuditEventRow(Base):

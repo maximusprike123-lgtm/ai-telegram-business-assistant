@@ -133,6 +133,9 @@ class FakeNavigation:
     async def unsupported(self, identity, *, update_key):
         return TelegramRenderer().unknown()
 
+    async def route_free_text(self, identity, text, *, update_key):
+        return await self.unsupported(identity, update_key=update_key)
+
     async def human_help(self, identity, *, update_key):
         return TelegramRenderer().human_placeholder()
 

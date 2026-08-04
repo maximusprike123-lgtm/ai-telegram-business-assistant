@@ -182,6 +182,13 @@ def test_renderer_static_recovery_pages_are_deterministic_and_english_only() -> 
     assert "AI and free-form" in renderer.unknown().text
 
 
+def test_ai_enabled_renderer_discloses_processing_and_safe_fallback() -> None:
+    renderer = TelegramRenderer(ai_enabled=True)
+    assert "advisory AI classification" in renderer.help().text
+    assert "not prompts, message text" in renderer.privacy().text
+    assert "no AI-proposed action was executed" in renderer.unknown().text
+
+
 def test_renderer_splits_and_escapes_oversized_plain_text() -> None:
     chunks = TelegramRenderer().split_plain_text(("unsafe <tag> & text " * 600).strip())
     assert len(chunks) > 1

@@ -67,6 +67,7 @@ class SuggestedAction(StrEnum):
     SHOW_HOME = "show_home"
     SHOW_CATALOG = "show_catalog"
     SHOW_HOURS = "show_hours"
+    ANSWER_KNOWLEDGE = "answer_knowledge"
     ASK_CLARIFICATION = "ask_clarification"
     OFFER_HUMAN = "offer_human"
     NONE = "none"

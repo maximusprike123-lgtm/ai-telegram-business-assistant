@@ -2,6 +2,7 @@
 
 from typing import cast
 
+import httpx
 from fastapi import FastAPI
 
 from business_assistant.application.catalog import GetService, ListServiceCategories, ListServices
@@ -13,6 +14,7 @@ from business_assistant.application.scheduling import (
     GetNextOpening,
 )
 from business_assistant.application.tenants import GetTenantPublicProfile
+from business_assistant.bootstrap.knowledge import build_knowledge_application
 from business_assistant.config import ConfigurationError, RuntimeSettings, load_settings
 from business_assistant.infrastructure.persistence import create_engine, create_session_factory
 from business_assistant.infrastructure.persistence.sqlalchemy.unit_of_work import (
@@ -50,6 +52,11 @@ def build_phase3_app(settings: RuntimeSettings) -> FastAPI:
     principal = Principal(
         "static-internal-operator", security.internal_api_tenant_id, security.internal_api_role
     )
+    ai_client = (
+        httpx.AsyncClient(timeout=httpx.Timeout(settings.ai.timeout_seconds))
+        if settings.features.rag_enabled
+        else None
+    )
     services = Phase3ApiServices(
         profile=GetTenantPublicProfile(typed_factory, clock),
         categories=ListServiceCategories(typed_factory),
@@ -59,9 +66,16 @@ def build_phase3_app(settings: RuntimeSettings) -> FastAPI:
         status=GetBusinessStatus(typed_factory, clock),
         next_opening=GetNextOpening(typed_factory, clock),
         authenticator=StaticApiKeyAuthenticator(security.internal_api_key, principal),
+        knowledge=build_knowledge_application(settings, session_factory, ai_client),
     )
     app = create_phase3_app(services)
-    app.router.add_event_handler("shutdown", engine.dispose)
+
+    async def close_runtime() -> None:
+        if ai_client is not None:
+            await ai_client.aclose()
+        await engine.dispose()
+
+    app.router.add_event_handler("shutdown", close_runtime)
     return app
 
 

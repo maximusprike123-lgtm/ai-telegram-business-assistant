@@ -2,6 +2,7 @@
 
 from .ai import SQLAlchemyAITelemetryStore
 from .booking import SQLAlchemyBookingStore
+from .knowledge import SQLAlchemyKnowledgeStore
 from .qualification import SQLAlchemyHandoffStore, SQLAlchemyQualificationStore
 from .sqlalchemy.engine import create_engine, create_session_factory
 from .sqlalchemy.unit_of_work import SQLAlchemyUnitOfWork
@@ -11,6 +12,7 @@ __all__ = [
     "SQLAlchemyAITelemetryStore",
     "SQLAlchemyBookingStore",
     "SQLAlchemyHandoffStore",
+    "SQLAlchemyKnowledgeStore",
     "SQLAlchemyQualificationStore",
     "SQLAlchemyTelegramIdentityStore",
     "SQLAlchemyTelegramUpdateStore",

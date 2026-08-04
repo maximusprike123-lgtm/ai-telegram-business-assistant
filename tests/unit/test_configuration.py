@@ -207,7 +207,26 @@ def test_enabled_openai_and_rag_require_explicit_model_policy() -> None:
     with pytest.raises(ConfigurationError, match="OPENAI_EMBEDDING_MODEL"):
         load_settings(values)
     values.update({"OPENAI_EMBEDDING_MODEL": "embedding-fixture", "EMBEDDING_DIMENSIONS": "1536"})
-    assert load_settings(values).openai.embedding_dimensions == 1536
+    configured = load_settings(values)
+    assert configured.openai.embedding_dimensions == 1536
+    assert configured.knowledge.chunk_max_tokens == 500
+    assert configured.knowledge.minimum_relevance == 0.6
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected"),
+    [
+        ("KNOWLEDGE_CHUNK_MAX_TOKENS", "49", "KNOWLEDGE_CHUNK_MAX_TOKENS"),
+        ("KNOWLEDGE_CHUNK_OVERLAP_TOKENS", "250", "KNOWLEDGE_CHUNK_OVERLAP_TOKENS"),
+        ("RAG_MIN_RELEVANCE", "0.49", "RAG_MIN_RELEVANCE"),
+        ("RAG_RESULT_LIMIT", "21", "RAG_RESULT_LIMIT"),
+    ],
+)
+def test_knowledge_policy_is_bounded(field: str, value: str, expected: str) -> None:
+    values = valid_environment()
+    values[field] = value
+    with pytest.raises(ConfigurationError, match=expected):
+        load_settings(values)
 
 
 def test_provider_neutral_ai_policy_is_externalized_and_legacy_aliases_remain_compatible() -> None:

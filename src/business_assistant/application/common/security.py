@@ -26,6 +26,8 @@ class Permission(StrEnum):
     QUALIFICATION_SCHEMA_WRITE = "qualification_schema:write"
     HANDOFF_READ = "handoff:read"
     HANDOFF_WRITE = "handoff:write"
+    KNOWLEDGE_READ = "knowledge:read"
+    KNOWLEDGE_WRITE = "knowledge:write"
 
 
 _READ_PERMISSIONS = frozenset(
@@ -37,15 +39,22 @@ _READ_PERMISSIONS = frozenset(
         Permission.LEAD_READ,
         Permission.QUALIFICATION_SCHEMA_READ,
         Permission.HANDOFF_READ,
+        Permission.KNOWLEDGE_READ,
     }
 )
-_WRITE_PERMISSIONS = frozenset({Permission.QUALIFICATION_SCHEMA_WRITE, Permission.HANDOFF_WRITE})
+_WRITE_PERMISSIONS = frozenset(
+    {
+        Permission.QUALIFICATION_SCHEMA_WRITE,
+        Permission.HANDOFF_WRITE,
+        Permission.KNOWLEDGE_WRITE,
+    }
+)
 _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
     Role.OWNER: _READ_PERMISSIONS | _WRITE_PERMISSIONS,
     Role.MANAGER: _READ_PERMISSIONS | _WRITE_PERMISSIONS,
     Role.AGENT: _READ_PERMISSIONS | {Permission.HANDOFF_WRITE},
     Role.VIEWER: _READ_PERMISSIONS,
-    Role.KNOWLEDGE_EDITOR: frozenset(),
+    Role.KNOWLEDGE_EDITOR: frozenset({Permission.KNOWLEDGE_READ, Permission.KNOWLEDGE_WRITE}),
 }
 
 

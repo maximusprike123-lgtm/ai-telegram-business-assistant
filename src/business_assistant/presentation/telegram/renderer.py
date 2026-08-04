@@ -12,6 +12,7 @@ from business_assistant.application.bookings import (
 )
 from business_assistant.application.catalog import ServiceCategoryDTO, ServiceDTO
 from business_assistant.application.handoffs import HandoffView
+from business_assistant.application.knowledge import KnowledgeAnswer
 from business_assistant.application.leads import (
     QualificationField,
     QualificationSchema,
@@ -195,8 +196,8 @@ class TelegramRenderer:
 
     def help(self) -> RenderedMessage:
         free_text = (
-            "Free-form text uses advisory AI classification with deterministic validation and "
-            "fallback."
+            "Free-form text uses advisory AI classification and approved knowledge retrieval "
+            "with deterministic validation and fallback."
             if self._ai_enabled
             else (
                 "Free-form questions receive a safe, deterministic reply because AI is not enabled."
@@ -210,11 +211,31 @@ class TelegramRenderer:
             show_reply_menu=True,
         )
 
+    def knowledge_answer(self, answer: KnowledgeAnswer) -> RenderedMessage:
+        if not answer.answered or not answer.evidence:
+            return self.unknown()
+        labels: list[str] = []
+        for item in answer.evidence:
+            label = item.chunk.title
+            if item.chunk.section and item.chunk.section != item.chunk.title:
+                label = f"{label} — {item.chunk.section}"
+            if label not in labels:
+                labels.append(label)
+        sources = ", ".join(_safe(label) for label in labels)
+        return RenderedMessage(
+            f"{_safe(answer.text)}\n\n<b>Approved sources:</b> {sources}",
+            (
+                (_button("Ask a person", CallbackAction.HUMAN),),
+                (_button("Home", CallbackAction.HOME),),
+            ),
+        )
+
     def privacy(self) -> RenderedMessage:
         ai_processing = (
             " When AI is enabled, free-form text is sent to the configured provider for bounded "
-            "classification. The application stores metadata such as model, latency, tokens, and "
-            "outcome—not prompts, message text, or provider response bodies."
+            "classification and, when knowledge is enabled, embedding. The application stores "
+            "AI-operation metadata such as model, latency, tokens, and outcome—not customer "
+            "prompts, message text, or provider response bodies."
             if self._ai_enabled
             else ""
         )

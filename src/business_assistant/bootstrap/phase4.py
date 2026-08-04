@@ -16,6 +16,7 @@ from business_assistant.application.catalog import GetService, ListServiceCatego
 from business_assistant.application.common.ports import Phase3UnitOfWork, Phase3UnitOfWorkFactory
 from business_assistant.application.common.security import Principal
 from business_assistant.application.handoffs import HandoffApplication
+from business_assistant.application.knowledge import KnowledgeApplication
 from business_assistant.application.leads import (
     QualificationAdministration,
     QualificationApplication,
@@ -28,6 +29,7 @@ from business_assistant.application.scheduling import (
 from business_assistant.application.telegram import ResolveTelegramIdentity, TelegramBotBinding
 from business_assistant.application.tenants import GetTenantPublicProfile
 from business_assistant.bootstrap.ai import build_ai_router
+from business_assistant.bootstrap.knowledge import build_knowledge_application
 from business_assistant.config import ConfigurationError, RuntimeSettings, load_settings
 from business_assistant.domain.shared import TenantId
 from business_assistant.infrastructure.observability import configure_logging
@@ -70,6 +72,7 @@ class Phase4Components:
     binding: TelegramBotBinding
     update_store: SQLAlchemyTelegramUpdateStore
     ai_client: httpx.AsyncClient | None
+    knowledge: KnowledgeApplication | None
 
 
 def _require_telegram(settings: RuntimeSettings) -> tuple[str, int, TenantId, str]:
@@ -124,6 +127,7 @@ def build_phase4_components(settings: RuntimeSettings) -> Phase4Components:
         else None
     )
     ai_router = build_ai_router(settings, session_factory, ai_client)
+    knowledge = build_knowledge_application(settings, session_factory, ai_client)
     navigation = TelegramNavigation(
         TelegramNavigationServices(
             GetTenantPublicProfile(typed_factory, clock),
@@ -142,6 +146,7 @@ def build_phase4_components(settings: RuntimeSettings) -> Phase4Components:
             ),
             HandoffApplication(SQLAlchemyHandoffStore(session_factory), clock),
             ai_router,
+            knowledge,
         )
     )
     identity_store = SQLAlchemyTelegramIdentityStore(session_factory)
@@ -167,6 +172,7 @@ def build_phase4_components(settings: RuntimeSettings) -> Phase4Components:
         binding,
         update_store,
         ai_client,
+        knowledge,
     )
 
 
@@ -216,6 +222,7 @@ def _internal_api_app(
         BookingApplication(SQLAlchemyBookingStore(components.session_factory), clock),
         QualificationAdministration(SQLAlchemyQualificationStore(components.session_factory)),
         HandoffApplication(SQLAlchemyHandoffStore(components.session_factory), clock),
+        components.knowledge,
     )
     return create_phase3_app(services)
 

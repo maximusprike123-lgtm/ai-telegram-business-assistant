@@ -197,3 +197,51 @@ class HandoffResponse(BaseModel):
 
 class HandoffActionRequest(BaseModel):
     action: Literal["claim", "resolve", "reopen", "return_to_bot"]
+
+
+class MarkdownKnowledgeCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    markdown: str = Field(min_length=1, max_length=10_485_760)
+    locale: Literal["en"] = "en"
+
+
+class FAQKnowledgeCreate(BaseModel):
+    question: str = Field(min_length=1, max_length=1000)
+    answer: str = Field(min_length=1, max_length=10_000)
+    aliases: tuple[str, ...] = Field(default=(), max_length=20)
+    priority: int = Field(default=0, ge=0, le=100)
+    locale: Literal["en"] = "en"
+
+
+class KnowledgeDocumentResponse(BaseModel):
+    id: str
+    title: str
+    locale: str
+    source_type: str
+    checksum: str
+    version: int
+    status: str
+    published_at: datetime | None
+    chunk_count: int
+
+
+class KnowledgeAnswerRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=2000)
+    locale: Literal["en"] = "en"
+
+
+class KnowledgeCitationResponse(BaseModel):
+    document_id: str
+    document_version: int
+    chunk_id: str
+    title: str
+    section: str | None
+    score: float
+    content_checksum: str
+
+
+class KnowledgeAnswerResponse(BaseModel):
+    answered: bool
+    text: str
+    citations: tuple[KnowledgeCitationResponse, ...]
+    fallback_reason: str | None

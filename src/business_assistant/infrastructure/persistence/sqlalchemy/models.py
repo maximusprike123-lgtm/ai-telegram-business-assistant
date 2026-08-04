@@ -1074,6 +1074,7 @@ class KnowledgeDocumentRow(Base):
     locale: Mapped[str] = mapped_column(String(10), nullable=False)
     source_type: Mapped[str] = mapped_column(String(50), nullable=False)
     checksum: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -1105,10 +1106,22 @@ class KnowledgeChunkRow(Base):
         UniqueConstraint("tenant_id", "document_id", "document_version", "ordinal"),
         CheckConstraint("ordinal >= 0", name="ordinal_nonnegative"),
         CheckConstraint("token_count >= 0", name="token_count_nonnegative"),
+        CheckConstraint(
+            "(embedding IS NULL AND embedding_model IS NULL AND embedding_dimensions IS NULL) "
+            "OR (embedding IS NOT NULL AND embedding_model IS NOT NULL "
+            "AND embedding_dimensions = vector_dims(embedding))",
+            name="embedding_metadata_consistent",
+        ),
         Index(
             "ix_knowledge_chunks_tenant_document", "tenant_id", "document_id", "document_version"
         ),
         Index("ix_knowledge_chunks_search_vector", "search_vector", postgresql_using="gin"),
+        Index(
+            "ix_knowledge_chunks_tenant_embedding",
+            "tenant_id",
+            "embedding_model",
+            "embedding_dimensions",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
@@ -1126,6 +1139,9 @@ class KnowledgeChunkRow(Base):
         nullable=False,
     )
     embedding: Mapped[list[float] | None] = mapped_column(Vector())
+    embedding_model: Mapped[str | None] = mapped_column(String(200))
+    embedding_dimensions: Mapped[int | None] = mapped_column(Integer)
+    instruction_risk: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(
         "metadata", JSONB, nullable=False, default=dict
     )

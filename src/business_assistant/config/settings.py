@@ -201,6 +201,16 @@ class AIRuntimeConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class KnowledgeConfig:
+    chunk_max_tokens: int
+    chunk_overlap_tokens: int
+    candidate_limit: int
+    result_limit: int
+    minimum_relevance: float
+    maximum_answer_characters: int
+
+
+@dataclass(frozen=True, slots=True)
 class ObservabilityConfig:
     log_level: str
     log_format: str
@@ -236,6 +246,7 @@ class RuntimeSettings:
     celery: CeleryConfig
     openai: OpenAIConfig
     ai: AIRuntimeConfig
+    knowledge: KnowledgeConfig
     observability: ObservabilityConfig
     features: FeatureConfig
     limits: LimitConfig
@@ -410,6 +421,16 @@ def load_settings(environ: Mapping[str, str] | None = None) -> RuntimeSettings:
         raise ConfigurationError(
             "OPENAI_EMBEDDING_MODEL", "embedding model and dimensions are required for RAG"
         )
+    chunk_max_tokens = _integer(values, "KNOWLEDGE_CHUNK_MAX_TOKENS", 500, 50, 1000)
+    chunk_overlap_tokens = _integer(values, "KNOWLEDGE_CHUNK_OVERLAP_TOKENS", 50, 0, 499)
+    if chunk_overlap_tokens >= chunk_max_tokens // 2:
+        raise ConfigurationError(
+            "KNOWLEDGE_CHUNK_OVERLAP_TOKENS", "must be less than half the chunk maximum"
+        )
+    retrieval_candidate_limit = _integer(values, "RAG_CANDIDATE_LIMIT", 20, 1, 100)
+    retrieval_result_limit = _integer(values, "RAG_RESULT_LIMIT", 4, 1, 20)
+    if retrieval_result_limit > retrieval_candidate_limit:
+        raise ConfigurationError("RAG_RESULT_LIMIT", "cannot exceed RAG_CANDIDATE_LIMIT")
     structured_output_mode = _text(values, "AI_STRUCTURED_OUTPUT_MODE", "strict_json_schema")
     if structured_output_mode != "strict_json_schema":
         raise ConfigurationError("AI_STRUCTURED_OUTPUT_MODE", "must be strict_json_schema")
@@ -522,6 +543,14 @@ def load_settings(environ: Mapping[str, str] | None = None) -> RuntimeSettings:
             _integer(values, "AI_MAX_OUTPUT_TOKENS", 800, 64, 32768),
             _decimal(values, "AI_INPUT_COST_PER_MILLION", "0", Decimal(0), Decimal(1_000_000)),
             _decimal(values, "AI_OUTPUT_COST_PER_MILLION", "0", Decimal(0), Decimal(1_000_000)),
+        ),
+        knowledge=KnowledgeConfig(
+            chunk_max_tokens,
+            chunk_overlap_tokens,
+            retrieval_candidate_limit,
+            retrieval_result_limit,
+            _number(values, "RAG_MIN_RELEVANCE", 0.6, 0.5, 1),
+            _integer(values, "RAG_MAX_ANSWER_CHARACTERS", 1800, 200, 4000),
         ),
         observability=ObservabilityConfig(
             log_level,

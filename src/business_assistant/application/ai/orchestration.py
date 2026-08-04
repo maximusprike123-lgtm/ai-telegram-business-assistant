@@ -21,6 +21,7 @@ class AdvisoryRoute(StrEnum):
     HOME = "home"
     CATALOG = "catalog"
     HOURS = "hours"
+    KNOWLEDGE = "knowledge"
     FALLBACK = "fallback"
 
 
@@ -48,6 +49,7 @@ class AITextRouter:
             SuggestedAction.SHOW_HOME: AdvisoryRoute.HOME,
             SuggestedAction.SHOW_CATALOG: AdvisoryRoute.CATALOG,
             SuggestedAction.SHOW_HOURS: AdvisoryRoute.HOURS,
+            SuggestedAction.ANSWER_KNOWLEDGE: AdvisoryRoute.KNOWLEDGE,
         }.get(execution.result.suggested_action, AdvisoryRoute.FALLBACK)
 
 
@@ -66,6 +68,7 @@ class AdvisoryRoutingValidator:
                 Intent.SERVICE_DETAIL,
             },
             SuggestedAction.SHOW_HOURS: {Intent.BUSINESS_HOURS},
+            SuggestedAction.ANSWER_KNOWLEDGE: {Intent.FAQ_KNOWLEDGE},
         }
         if (
             result.suggested_action in allowed

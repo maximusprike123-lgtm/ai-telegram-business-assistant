@@ -5,9 +5,11 @@ from .catalog import (
     default_prompts,
 )
 from .openai import OpenAIResponsesAdapter
+from .openai_embeddings import OpenAIEmbeddingsAdapter
 
 __all__ = [
     "AIProviderRegistry",
+    "OpenAIEmbeddingsAdapter",
     "OpenAIResponsesAdapter",
     "StaticModelPolicyCatalog",
     "VersionedPromptCatalog",

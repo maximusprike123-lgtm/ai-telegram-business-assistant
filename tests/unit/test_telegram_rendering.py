@@ -184,8 +184,8 @@ def test_renderer_static_recovery_pages_are_deterministic_and_english_only() -> 
 
 def test_ai_enabled_renderer_discloses_processing_and_safe_fallback() -> None:
     renderer = TelegramRenderer(ai_enabled=True)
-    assert "advisory AI classification" in renderer.help().text
-    assert "not prompts, message text" in renderer.privacy().text
+    assert "advisory AI classification and approved knowledge retrieval" in renderer.help().text
+    assert "not customer prompts, message text" in renderer.privacy().text
     assert "no AI-proposed action was executed" in renderer.unknown().text
 
 

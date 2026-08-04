@@ -64,5 +64,16 @@ async def test_schema_has_required_extensions_tables_and_constraints(
             "ai_operations",
         } <= tables
         assert exclusion == 1
+        async with engine.connect() as connection:
+            knowledge_columns = await connection.run_sync(
+                lambda sync: {
+                    item["name"] for item in inspect(sync).get_columns("knowledge_chunks")
+                }
+            )
+        assert {
+            "embedding_model",
+            "embedding_dimensions",
+            "instruction_risk",
+        } <= knowledge_columns
     finally:
         await engine.dispose()

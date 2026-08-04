@@ -90,3 +90,8 @@ class QualificationError(ApplicationError):
 class HandoffError(ApplicationError):
     def __init__(self, message: str = "Human handoff request is invalid or unavailable") -> None:
         super().__init__("handoff.invalid", message)
+
+
+class KnowledgeError(ApplicationError):
+    def __init__(self, message: str = "Knowledge request is invalid or unavailable") -> None:
+        super().__init__("knowledge.invalid", message)

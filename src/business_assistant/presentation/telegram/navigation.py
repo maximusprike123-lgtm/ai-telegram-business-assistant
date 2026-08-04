@@ -9,6 +9,7 @@ from business_assistant.application.catalog import GetService, ListServiceCatego
 from business_assistant.application.common.errors import CategoryNotFoundError
 from business_assistant.application.common.security import Principal, Role
 from business_assistant.application.handoffs import HandoffApplication, HandoffView
+from business_assistant.application.knowledge import KnowledgeApplication
 from business_assistant.application.leads import (
     QualificationApplication,
     QualificationSessionStatus,
@@ -47,6 +48,7 @@ class TelegramNavigationServices:
     qualifications: QualificationApplication | None = None
     handoffs: HandoffApplication | None = None
     ai_router: AITextRouter | None = None
+    knowledge: KnowledgeApplication | None = None
 
 
 class TelegramNavigation:
@@ -311,6 +313,14 @@ class TelegramNavigation:
             return await self.catalog(identity)
         if route is AdvisoryRoute.HOURS:
             return await self.hours(identity)
+        if route is AdvisoryRoute.KNOWLEDGE and self._services.knowledge is not None:
+            answer = await self._services.knowledge.answer_for_tenant(
+                identity.tenant_id,
+                query=text,
+                locale=identity.locale,
+            )
+            if answer.answered:
+                return self._services.renderer.knowledge_answer(answer)
         return await self.unsupported(identity, update_key=update_key)
 
     async def paused(self, identity: TelegramIdentity) -> HandoffView | None:

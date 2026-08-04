@@ -21,6 +21,11 @@ from business_assistant.application.catalog import (
 from business_assistant.application.common.errors import ApplicationError
 from business_assistant.application.common.security import Principal
 from business_assistant.application.handoffs import HandoffApplication, HandoffView
+from business_assistant.application.knowledge import (
+    KnowledgeAnswer,
+    KnowledgeApplication,
+    KnowledgeDocumentView,
+)
 from business_assistant.application.leads import (
     FieldValidation,
     GradeBand,
@@ -44,6 +49,7 @@ from business_assistant.application.scheduling import (
 from business_assistant.application.tenants import GetTenantPublicProfile, TenantPublicProfileDTO
 from business_assistant.domain.shared import (
     CategoryId,
+    DocumentId,
     HandoffId,
     QualificationSchemaId,
     ServiceId,
@@ -56,8 +62,14 @@ from .schemas import (
     BusinessStatusResponse,
     CategoryResponse,
     ErrorResponse,
+    FAQKnowledgeCreate,
     HandoffActionRequest,
     HandoffResponse,
+    KnowledgeAnswerRequest,
+    KnowledgeAnswerResponse,
+    KnowledgeCitationResponse,
+    KnowledgeDocumentResponse,
+    MarkdownKnowledgeCreate,
     NextOpeningResponse,
     QualificationSchemaCreate,
     QualificationSchemaResponse,
@@ -79,6 +91,7 @@ class Phase3ApiServices:
     bookings: BookingApplication | None = None
     qualification_admin: QualificationAdministration | None = None
     handoffs: HandoffApplication | None = None
+    knowledge: KnowledgeApplication | None = None
 
 
 def _schema_response(schema: QualificationSchema) -> QualificationSchemaResponse:
@@ -102,6 +115,40 @@ def _handoff_response(handoff: HandoffView) -> HandoffResponse:
         context=handoff.context,
         response_due_at=handoff.response_due_at,
         assignee_id=handoff.assignee_id,
+    )
+
+
+def _knowledge_document_response(document: KnowledgeDocumentView) -> KnowledgeDocumentResponse:
+    return KnowledgeDocumentResponse(
+        id=str(document.id),
+        title=document.title,
+        locale=document.locale.value,
+        source_type=document.source_type.value,
+        checksum=document.checksum,
+        version=document.version,
+        status=document.status,
+        published_at=document.published_at,
+        chunk_count=document.chunk_count,
+    )
+
+
+def _knowledge_answer_response(answer: KnowledgeAnswer) -> KnowledgeAnswerResponse:
+    return KnowledgeAnswerResponse(
+        answered=answer.answered,
+        text=answer.text,
+        citations=tuple(
+            KnowledgeCitationResponse(
+                document_id=str(item.citation.document_id),
+                document_version=item.citation.document_version,
+                chunk_id=item.citation.chunk_id,
+                title=item.chunk.title,
+                section=item.chunk.section,
+                score=item.citation.score.value,
+                content_checksum=item.citation.content_checksum,
+            )
+            for item in answer.evidence
+        ),
+        fallback_reason=answer.fallback_reason,
     )
 
 
@@ -179,6 +226,7 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
             {"name": "Booking", "description": "Resource-aware appointment availability"},
             {"name": "Qualification", "description": "Versioned lead qualification schemas"},
             {"name": "Handoff", "description": "Authorized human handoff operations"},
+            {"name": "Knowledge", "description": "Tenant-scoped approved knowledge"},
         ],
     )
     key_header = APIKeyHeader(
@@ -485,5 +533,97 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
                 principal, HandoffId(handoff_id), request.action
             )
             return _handoff_response(handoff)
+
+    knowledge_application = services.knowledge
+    if knowledge_application is not None:
+
+        @app.post(
+            "/api/v1/knowledge/markdown",
+            response_model=KnowledgeDocumentResponse,
+            status_code=201,
+            tags=["Knowledge"],
+            summary="Ingest a bounded Markdown knowledge source",
+            responses=error_responses,
+        )
+        async def ingest_markdown(
+            request: MarkdownKnowledgeCreate,
+            principal: PrincipalDependency,
+        ) -> KnowledgeDocumentResponse:
+            document = await knowledge_application.ingest_markdown(
+                principal,
+                title=request.title,
+                markdown=request.markdown,
+                locale=request.locale,
+            )
+            return _knowledge_document_response(document)
+
+        @app.post(
+            "/api/v1/knowledge/faqs",
+            response_model=KnowledgeDocumentResponse,
+            status_code=201,
+            tags=["Knowledge"],
+            summary="Ingest one curated FAQ as an immutable source",
+            responses=error_responses,
+        )
+        async def ingest_faq(
+            request: FAQKnowledgeCreate,
+            principal: PrincipalDependency,
+        ) -> KnowledgeDocumentResponse:
+            document = await knowledge_application.ingest_faq(
+                principal,
+                question=request.question,
+                answer=request.answer,
+                aliases=request.aliases,
+                priority=request.priority,
+                locale=request.locale,
+            )
+            return _knowledge_document_response(document)
+
+        @app.post(
+            "/api/v1/knowledge/documents/{document_id}/publish",
+            response_model=KnowledgeDocumentResponse,
+            tags=["Knowledge"],
+            summary="Publish a ready knowledge document",
+            responses=error_responses,
+        )
+        async def publish_knowledge(
+            document_id: UUID,
+            principal: PrincipalDependency,
+        ) -> KnowledgeDocumentResponse:
+            document = await knowledge_application.publish(principal, DocumentId(document_id))
+            return _knowledge_document_response(document)
+
+        @app.post(
+            "/api/v1/knowledge/documents/{document_id}/archive",
+            response_model=KnowledgeDocumentResponse,
+            tags=["Knowledge"],
+            summary="Archive a published or ready knowledge document",
+            responses=error_responses,
+        )
+        async def archive_knowledge(
+            document_id: UUID,
+            principal: PrincipalDependency,
+        ) -> KnowledgeDocumentResponse:
+            document = await knowledge_application.archive(principal, DocumentId(document_id))
+            return _knowledge_document_response(document)
+
+        @app.post(
+            "/api/v1/knowledge/test-answer",
+            response_model=KnowledgeAnswerResponse,
+            tags=["Knowledge"],
+            summary="Evaluate retrieval and citation-backed evidence",
+            responses=error_responses,
+        )
+        async def test_knowledge_answer(
+            request: KnowledgeAnswerRequest,
+            principal: PrincipalDependency,
+        ) -> KnowledgeAnswerResponse:
+            return _knowledge_answer_response(
+                await knowledge_application.answer(
+                    principal,
+                    query=request.query,
+                    locale=request.locale,
+                )
+            )
 
     return app

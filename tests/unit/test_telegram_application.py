@@ -1,5 +1,6 @@
 from dataclasses import replace
 from datetime import UTC, datetime
+from uuid import uuid4
 
 import pytest
 from tests.helpers_phase3 import phase3_fixture
@@ -8,6 +9,12 @@ from tests.unit.test_configuration import telegram_environment, valid_environmen
 from business_assistant.application.ai import AdvisoryRoute
 from business_assistant.application.catalog import GetService, ListServiceCategories, ListServices
 from business_assistant.application.common.errors import CategoryNotFoundError
+from business_assistant.application.knowledge import (
+    KnowledgeAnswer,
+    KnowledgeEvidence,
+    KnowledgeSourceType,
+    RetrievedKnowledgeChunk,
+)
 from business_assistant.application.scheduling import (
     GetBusinessHours,
     GetBusinessStatus,
@@ -20,8 +27,11 @@ from business_assistant.bootstrap.phase4 import build_phase4_components
 from business_assistant.config import ConfigurationError, load_settings
 from business_assistant.domain.shared import (
     CategoryId,
+    Citation,
+    Confidence,
     ConversationId,
     CustomerId,
+    DocumentId,
     Locale,
     ServiceId,
     TenantId,
@@ -126,6 +136,51 @@ async def test_navigation_calls_existing_validated_queries_and_renders_pages() -
             await routed.route_free_text(identity, "When are you open?", update_key="fixture:1")
         ).text
     )
+
+    class KnowledgeRouter:
+        async def route(self, identity, text, *, correlation_id):
+            return AdvisoryRoute.KNOWLEDGE
+
+    class KnowledgeFixture:
+        async def answer_for_tenant(self, tenant_id, *, query, locale):
+            document_id, chunk_id = DocumentId.new(), uuid4()
+            chunk = RetrievedKnowledgeChunk(
+                document_id,
+                1,
+                chunk_id,
+                "Warranty policy",
+                Locale.EN,
+                KnowledgeSourceType.MARKDOWN,
+                "Warranty requires inspection.",
+                "Warranty",
+                "a" * 64,
+                0.9,
+                1,
+                1,
+            )
+            return KnowledgeAnswer(
+                True,
+                chunk.text,
+                (
+                    KnowledgeEvidence(
+                        chunk,
+                        Citation(document_id, 1, str(chunk_id), Confidence(0.9), "a" * 64),
+                    ),
+                ),
+            )
+
+    knowledge_routed = TelegramNavigation(
+        replace(
+            nav_services,
+            ai_router=KnowledgeRouter(),  # type: ignore[arg-type]
+            knowledge=KnowledgeFixture(),  # type: ignore[arg-type]
+        )
+    )
+    knowledge_page = await knowledge_routed.route_free_text(
+        identity, "What is the warranty policy?", update_key="fixture:2"
+    )
+    assert "Warranty requires inspection" in knowledge_page.text
+    assert "Approved sources" in knowledge_page.text
 
 
 def test_telegram_binding_requires_positive_bot_id() -> None:

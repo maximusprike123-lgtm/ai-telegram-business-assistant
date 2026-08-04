@@ -2,11 +2,12 @@
 
 import asyncio
 import os
-from datetime import date, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID
 
 from sqlalchemy.dialects.postgresql import insert
 
+from business_assistant.application.knowledge import content_checksum
 from business_assistant.application.leads import (
     FieldValidation,
     GradeBand,
@@ -41,6 +42,8 @@ from .qualification import schema_definition
 from .sqlalchemy.engine import create_engine, create_session_factory
 from .sqlalchemy.models import (
     BookingPolicyRow,
+    KnowledgeChunkRow,
+    KnowledgeDocumentRow,
     QualificationSchemaRow,
     ResourceRow,
     ServiceResourceRow,
@@ -56,6 +59,13 @@ NORTHSTAR_RESOURCE_IDS = (
 )
 NORTHSTAR_QUALIFICATION_SCHEMA_ID = QualificationSchemaId(
     UUID("2ab5519f-f966-5cd5-8338-9c1df89eeb1c")
+)
+NORTHSTAR_KNOWLEDGE_DOCUMENT_ID = UUID("de5a471b-985c-5884-91f4-2a91ea789b4f")
+NORTHSTAR_KNOWLEDGE_CHUNK_ID = UUID("2242d718-3cf2-5ed5-8581-6dadf62955a7")
+_NORTHSTAR_FAQ_TEXT = (
+    "Question: Do you guarantee same-day repairs?\n"
+    "Answer: No. Completion time depends on inspection findings and parts availability. "
+    "The fictional workshop confirms timing after inspection."
 )
 
 _SERVICE_IDS = {
@@ -372,6 +382,61 @@ async def seed_northstar(database_url: str, app_env: str) -> None:
                         "customer_name_max_length": 100,
                         "customer_phone_max_length": 32,
                         "customer_note_max_length": 500,
+                    },
+                )
+            )
+            knowledge_checksum = content_checksum(_NORTHSTAR_FAQ_TEXT)
+            await session.execute(
+                insert(KnowledgeDocumentRow)
+                .values(
+                    id=NORTHSTAR_KNOWLEDGE_DOCUMENT_ID,
+                    tenant_id=NORTHSTAR_TENANT_ID.value,
+                    title="Same-day repair FAQ",
+                    locale="en",
+                    source_type="faq",
+                    checksum=knowledge_checksum,
+                    source_text=_NORTHSTAR_FAQ_TEXT,
+                    version=1,
+                    status="ready",
+                    published_at=datetime(2026, 8, 4, tzinfo=UTC),
+                    metadata_json={"fictional_demo": True},
+                )
+                .on_conflict_do_update(
+                    index_elements=["id"],
+                    set_={
+                        "title": "Same-day repair FAQ",
+                        "source_text": _NORTHSTAR_FAQ_TEXT,
+                        "checksum": knowledge_checksum,
+                        "status": "ready",
+                        "published_at": datetime(2026, 8, 4, tzinfo=UTC),
+                    },
+                )
+            )
+            await session.execute(
+                insert(KnowledgeChunkRow)
+                .values(
+                    id=NORTHSTAR_KNOWLEDGE_CHUNK_ID,
+                    tenant_id=NORTHSTAR_TENANT_ID.value,
+                    document_id=NORTHSTAR_KNOWLEDGE_DOCUMENT_ID,
+                    document_version=1,
+                    ordinal=0,
+                    chunk_text=_NORTHSTAR_FAQ_TEXT,
+                    token_count=len(_NORTHSTAR_FAQ_TEXT.split()),
+                    embedding=None,
+                    embedding_model=None,
+                    embedding_dimensions=None,
+                    instruction_risk=False,
+                    metadata_json={"section": "FAQ", "priority": 50},
+                    checksum=knowledge_checksum,
+                )
+                .on_conflict_do_update(
+                    index_elements=["id"],
+                    set_={
+                        "chunk_text": _NORTHSTAR_FAQ_TEXT,
+                        "token_count": len(_NORTHSTAR_FAQ_TEXT.split()),
+                        "instruction_risk": False,
+                        "metadata": {"section": "FAQ", "priority": 50},
+                        "checksum": knowledge_checksum,
                     },
                 )
             )

@@ -1,5 +1,6 @@
 from dataclasses import replace
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from tests.helpers_phase3 import api_services, phase3_fixture
@@ -11,7 +12,14 @@ from business_assistant.application.bookings import (
     BookingPolicy,
 )
 from business_assistant.application.common.security import Principal, Role
-from business_assistant.domain.shared import ResourceId
+from business_assistant.application.knowledge import (
+    KnowledgeAnswer,
+    KnowledgeDocumentView,
+    KnowledgeEvidence,
+    KnowledgeSourceType,
+    RetrievedKnowledgeChunk,
+)
+from business_assistant.domain.shared import Citation, Confidence, DocumentId, Locale, ResourceId
 from business_assistant.presentation.http import create_phase3_app
 
 
@@ -141,3 +149,111 @@ def test_phase5_availability_endpoint_is_authenticated_and_tenant_derived() -> N
     assert response.json()
     assert response.json()[0]["timezone"] == "Europe/Moscow"
     assert "/api/v1/availability" in api.get("/openapi.json").json()["paths"]
+
+
+def test_phase8_knowledge_endpoints_are_authenticated_and_document_citations() -> None:
+    uow, principal, clock, key = phase3_fixture()
+    document_id, chunk_id = DocumentId.new(), uuid4()
+
+    class KnowledgeFixture:
+        async def ingest_markdown(self, actor, **kwargs):
+            assert actor.tenant_id == principal.tenant_id
+            assert kwargs["locale"] == "en"
+            return document(None)
+
+        async def ingest_faq(self, actor, **kwargs):
+            assert kwargs["priority"] == 10
+            return document(None, source_type=KnowledgeSourceType.FAQ)
+
+        async def publish(self, actor, requested_id):
+            assert requested_id == document_id
+            return document(datetime(2026, 8, 4, tzinfo=UTC))
+
+        async def archive(self, actor, requested_id):
+            assert requested_id == document_id
+            return KnowledgeDocumentView(
+                document_id,
+                "Warranty",
+                Locale.EN,
+                KnowledgeSourceType.MARKDOWN,
+                "a" * 64,
+                1,
+                "archived",
+                None,
+                1,
+            )
+
+        async def answer(self, actor, **kwargs):
+            chunk = RetrievedKnowledgeChunk(
+                document_id,
+                1,
+                chunk_id,
+                "Warranty",
+                Locale.EN,
+                KnowledgeSourceType.MARKDOWN,
+                "Warranty requires inspection.",
+                "Warranty",
+                "b" * 64,
+                0.9,
+                1,
+                1,
+            )
+            return KnowledgeAnswer(
+                True,
+                chunk.text,
+                (
+                    KnowledgeEvidence(
+                        chunk, Citation(document_id, 1, str(chunk_id), Confidence(0.9), "b" * 64)
+                    ),
+                ),
+            )
+
+    def document(
+        published_at, *, source_type=KnowledgeSourceType.MARKDOWN
+    ) -> KnowledgeDocumentView:
+        return KnowledgeDocumentView(
+            document_id,
+            "Warranty",
+            Locale.EN,
+            source_type,
+            "a" * 64,
+            1,
+            "ready",
+            published_at,
+            1,
+        )
+
+    services = replace(api_services(uow, principal, clock, key), knowledge=KnowledgeFixture())
+    api = TestClient(create_phase3_app(services))
+    headers = {"X-Internal-API-Key": key}
+    assert (
+        api.post(
+            "/api/v1/knowledge/markdown",
+            headers=headers,
+            json={"title": "Warranty", "markdown": "# Warranty\nInspection required."},
+        ).status_code
+        == 201
+    )
+    assert (
+        api.post(
+            "/api/v1/knowledge/faqs",
+            headers=headers,
+            json={"question": "Question?", "answer": "Answer.", "priority": 10},
+        ).status_code
+        == 201
+    )
+    published = api.post(f"/api/v1/knowledge/documents/{document_id}/publish", headers=headers)
+    assert published.status_code == 200 and published.json()["published_at"]
+    answer = api.post(
+        "/api/v1/knowledge/test-answer",
+        headers=headers,
+        json={"query": "What is required?"},
+    )
+    assert answer.status_code == 200
+    assert answer.json()["citations"][0]["chunk_id"] == str(chunk_id)
+    assert (
+        api.post("/api/v1/knowledge/test-answer", json={"query": "What is required?"}).status_code
+        == 401
+    )
+    schema = api.get("/openapi.json").json()
+    assert "/api/v1/knowledge/test-answer" in schema["paths"]

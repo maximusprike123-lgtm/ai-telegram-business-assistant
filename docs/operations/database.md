@@ -1,4 +1,4 @@
-# Database runbook through Phase 5
+# Database runbook through Phase 6
 
 Phase 2 supports PostgreSQL only. Use a disposable database for tests; migration tests remove and
 recreate the application schema. The database role needs permission to create the `vector` and
@@ -27,6 +27,9 @@ operation are documented in the [Phase 4 Telegram runbook](phase-4-telegram.md).
 Revision `0004_phase5` adds booking policy, service/resource eligibility, resource blackout,
 draft, and hold tables plus public-reference/identity links on bookings. It is reversible and
 validated from an empty database and through a downgrade/upgrade round trip.
+Revision `0005_phase6` adds qualification schema/session/consent/update tables, lead completion
+snapshots, and linked/idempotent handoff context. It preserves the Phase 2 lead and handoff tables
+and extends them through reversible constraints and indexes.
 
 ## Seed the fictional demo
 
@@ -45,6 +48,9 @@ starting-from, and quote-based presentation. Weekdays have 08:00–12:00 and 13:
 intervals, Saturday is 09:00–15:00, and Sunday is closed. Fixed overrides close 2027-01-01 and
 specially open 2027-01-03 from 10:00–14:00. These dates are test/demo fixtures, not current
 holiday policy.
+The seed also publishes one English `service_request` qualification schema with fictional consent,
+score, and structured vehicle-safety routing rules. It does not configure real notification
+recipients or approved production emergency policy.
 
 ## Test
 

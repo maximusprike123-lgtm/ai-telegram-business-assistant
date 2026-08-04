@@ -4,8 +4,8 @@ A controlled, tenant-aware business workflow system for Telegram customer suppor
 knowledge answers, lead qualification, booking, and human handoff.
 
 > **Demo notice:** Northstar Auto Care is a fictional portfolio business. The current repository
-> ships with Telegram disabled and no credentials, does not create real appointments, and contains
-> no real customer data.
+> ships with Telegram disabled and no credentials, creates only fictional demo appointments,
+> leads, and handoff cases, and contains no real customer data.
 
 ## Status
 
@@ -18,7 +18,9 @@ knowledge answers, lead qualification, booking, and human handoff.
   minimal Telegram identity, signed menus, safe rendering, and development polling
 - Phase 5: resource-aware tenant-local availability, durable slot holds and drafts, atomic
   appointment confirmation, cancellation/rescheduling, and English-only Telegram booking
-- Phases 6–13: not implemented
+- Phase 6: versioned consent and qualification, deterministic validation/scoring, durable lead
+  sessions, business-hours-aware human handoff, staff lifecycle API, and Telegram integration
+- Phases 7–13: not implemented
 
 The current code is deliberately not a chatbot. Consequential operations belong to validated
 application and domain workflows; future AI output remains advisory until it passes structured,
@@ -102,6 +104,8 @@ Telegram webhook registration, polling, retry, and cleanup operations are in the
 [Phase 4 Telegram runbook](docs/operations/phase-4-telegram.md).
 Availability rules, booking transactions, expiry, and fictional demo policy are in the
 [Phase 5 booking runbook](docs/operations/phase-5-booking.md).
+Consent, qualification, lead scoring, and handoff operations are in the
+[Phase 6 leads and handoff runbook](docs/operations/phase-6-leads-handoff.md).
 
 ## Repository layout
 
@@ -131,6 +135,7 @@ docs/
 - [Phase 3 traceability](docs/phase-3-traceability.md)
 - [Phase 4 traceability](docs/phase-4-traceability.md)
 - [Phase 5 traceability](docs/phase-5-traceability.md)
+- [Phase 6 traceability](docs/phase-6-traceability.md)
 
 The implementation specification remains the source of truth. Documentation in this repository
 records decisions and implementation status; it does not replace the specification.

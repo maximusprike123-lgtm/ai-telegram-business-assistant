@@ -6,8 +6,8 @@
 - Git.
 - PostgreSQL 18 with pgvector and `btree_gist` is required for the integration gate.
 - FastAPI serves the protected business API and authenticated Telegram webhook. aiogram 3 is the
-  Telegram presentation adapter. Phase 5 booking transactions require PostgreSQL; Redis, Celery,
-  and OpenAI remain disabled and are not required.
+  Telegram presentation adapter. Phase 5 booking and Phase 6 qualification/handoff transactions
+  require PostgreSQL; Redis, Celery, and OpenAI remain disabled and are not required.
 
 ## First setup
 
@@ -44,12 +44,13 @@ The database user must be able to create the `vector` and `btree_gist` extension
 coverage should remain higher where business consequences are involved. Do not lower a gate to
 make a change pass.
 
-Focused Phase 3 through Phase 5 checks can be run with:
+Focused Phase 3 through Phase 6 checks can be run with:
 
 ```bash
 pytest tests/unit/test_configuration.py tests/unit/test_phase3_queries.py \
   tests/unit/test_schedule_engine.py tests/unit/test_telegram_application.py \
   tests/unit/test_telegram_rendering.py tests/unit/test_telegram_dispatcher.py tests/api
+pytest tests/unit/test_phase6_rules.py tests/integration/test_phase6_qualification.py
 pytest -m postgresql
 alembic check
 ```
@@ -74,6 +75,8 @@ The [Telegram runbook](operations/phase-4-telegram.md) documents mutually exclus
 webhook registration, secrets, retry semantics, and update-ledger cleanup.
 The [booking runbook](operations/phase-5-booking.md) documents demo policy, transaction guarantees,
 manual hold expiry, privacy boundaries, and deferred behavior.
+The [Phase 6 runbook](operations/phase-6-leads-handoff.md) documents consent, lead scoring,
+handoff pause/control, and the notification delivery boundary.
 
 ## Git hooks
 

@@ -10,3 +10,4 @@
 | [0006](0006-phase-3-query-and-internal-api-boundary.md) | Accepted | Public profile, deterministic queries/schedules, protected internal API |
 | [0007](0007-phase-4-telegram-presentation-boundary.md) | Accepted | Telegram adapter, trusted binding, durable update lifecycle, identity, callbacks, and delivery modes |
 | [0008](0008-phase-5-booking-transaction-boundary.md) | Accepted | Availability inputs, durable holds/drafts, PostgreSQL contention control, and identity-owned lifecycle |
+| [0009](0009-phase-6-qualification-and-handoff-boundary.md) | Accepted | Versioned consent/qualification, deterministic scoring, durable handoff, bot pause, and staff control |

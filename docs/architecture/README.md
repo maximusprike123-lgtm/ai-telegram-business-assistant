@@ -37,6 +37,11 @@ untrusted input or AI output
 No generated AI text is an authoritative operation result. Customer-facing claims will be
 assembled only from successful application results and validated evidence.
 
+Phase 6 qualification and handoff follow the same path without an AI adapter: versioned schema
+input is deterministically validated and scored, consequential state is committed atomically, and
+Telegram renders only the resulting application state. Active handoff state is checked before bot
+workflow routing.
+
 ## Decision records
 
 The [ADR index](decisions.md) records binding baseline choices. Later phases may supersede an ADR

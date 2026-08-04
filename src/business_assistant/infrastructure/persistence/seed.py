@@ -7,6 +7,17 @@ from uuid import UUID
 
 from sqlalchemy.dialects.postgresql import insert
 
+from business_assistant.application.leads import (
+    FieldValidation,
+    GradeBand,
+    HandoffTrigger,
+    MatchOperator,
+    QualificationField,
+    QualificationFieldType,
+    QualificationSchema,
+    ScoreRule,
+    Sensitivity,
+)
 from business_assistant.domain.catalog import Service, ServiceCategory
 from business_assistant.domain.scheduling import (
     BusinessSchedule,
@@ -19,14 +30,21 @@ from business_assistant.domain.shared import (
     Money,
     PriceMode,
     PricePresentation,
+    QualificationSchemaId,
     ScheduleId,
     ServiceId,
     TenantId,
 )
 from business_assistant.domain.tenants import Tenant, TenantPublicProfile
 
+from .qualification import schema_definition
 from .sqlalchemy.engine import create_engine, create_session_factory
-from .sqlalchemy.models import BookingPolicyRow, ResourceRow, ServiceResourceRow
+from .sqlalchemy.models import (
+    BookingPolicyRow,
+    QualificationSchemaRow,
+    ResourceRow,
+    ServiceResourceRow,
+)
 from .sqlalchemy.unit_of_work import SQLAlchemyUnitOfWork
 
 NORTHSTAR_TENANT_ID = TenantId(UUID("f73f5ad0-05c8-5bc6-a2c7-166b959fa73e"))
@@ -35,6 +53,9 @@ NORTHSTAR_SCHEDULE_ID = ScheduleId(UUID("9419ac4d-a535-5f3b-99f0-f51f6a6e042a"))
 NORTHSTAR_RESOURCE_IDS = (
     UUID("ad08e178-17a7-5512-8734-cb6aff4018d0"),
     UUID("d1e30ca4-b9ba-59ca-8ae4-1962c6dc6eee"),
+)
+NORTHSTAR_QUALIFICATION_SCHEMA_ID = QualificationSchemaId(
+    UUID("2ab5519f-f966-5cd5-8338-9c1df89eeb1c")
 )
 
 _SERVICE_IDS = {
@@ -109,6 +130,101 @@ def northstar_services() -> tuple[Service, ...]:
             PriceMode.STARTING_FROM,
             350_000,
         ),
+    )
+
+
+def northstar_qualification_schema() -> QualificationSchema:
+    safety_triggers = tuple(
+        HandoffTrigger(
+            f"issue-{phrase.replace(' ', '-')}",
+            MatchOperator.CONTAINS,
+            phrase,
+            phrase.replace(" ", "_"),
+            "urgent",
+        )
+        for phrase in ("accident", "fire", "fuel leak")
+    )
+    return QualificationSchema(
+        NORTHSTAR_QUALIFICATION_SCHEMA_ID,
+        NORTHSTAR_TENANT_ID,
+        "service_request",
+        1,
+        "Vehicle service request",
+        "northstar-demo-v1",
+        "Store these details to prepare and respond to this fictional service request.",
+        (
+            QualificationField(
+                "vehicle",
+                "Vehicle",
+                "What is the vehicle make, model, and year?",
+                QualificationFieldType.SHORT_TEXT,
+                FieldValidation(min_length=3, max_length=100),
+                True,
+                0,
+                Sensitivity.PERSONAL,
+            ),
+            QualificationField(
+                "issue",
+                "Observed issue",
+                "Briefly describe what you observed. Do not rely on this demo for a diagnosis.",
+                QualificationFieldType.LONG_TEXT,
+                FieldValidation(min_length=5, max_length=500),
+                True,
+                1,
+                Sensitivity.PERSONAL,
+                handoff_triggers=safety_triggers,
+            ),
+            QualificationField(
+                "drivable",
+                "Vehicle drivable",
+                "Is the vehicle currently safe to move? Answer yes or no. If unsure, answer no.",
+                QualificationFieldType.BOOLEAN,
+                FieldValidation(),
+                True,
+                2,
+                Sensitivity.SENSITIVE,
+                score_rules=(ScoreRule("not-drivable-score", MatchOperator.EQUALS, False, 40),),
+                handoff_triggers=(
+                    HandoffTrigger(
+                        "not-drivable",
+                        MatchOperator.EQUALS,
+                        False,
+                        "unsafe_vehicle",
+                        "urgent",
+                    ),
+                ),
+            ),
+            QualificationField(
+                "urgency",
+                "Requested timing",
+                "Choose a timing: Routine, Soon, or Urgent.",
+                QualificationFieldType.SINGLE_CHOICE,
+                FieldValidation(options=("Routine", "Soon", "Urgent")),
+                True,
+                3,
+                Sensitivity.PUBLIC,
+                score_rules=(
+                    ScoreRule("timing-routine", MatchOperator.EQUALS, "Routine", 10),
+                    ScoreRule("timing-soon", MatchOperator.EQUALS, "Soon", 30),
+                    ScoreRule("timing-urgent", MatchOperator.EQUALS, "Urgent", 60),
+                ),
+            ),
+            QualificationField(
+                "contact_phone",
+                "Contact phone",
+                "Enter a phone number the fictional workshop may use for this request.",
+                QualificationFieldType.PHONE,
+                FieldValidation(),
+                True,
+                4,
+                Sensitivity.SENSITIVE,
+            ),
+        ),
+        (GradeBand(0, "C"), GradeBand(30, "B"), GradeBand(60, "A")),
+        timedelta(hours=24),
+        120,
+        True,
+        True,
     )
 
 
@@ -190,6 +306,46 @@ async def seed_northstar(database_url: str, app_env: str) -> None:
                 await uow.services.upsert(NORTHSTAR_TENANT_ID, service)
             await uow.commit()
         async with factory() as session, session.begin():
+            qualification = northstar_qualification_schema()
+            await session.execute(
+                insert(QualificationSchemaRow)
+                .values(
+                    id=qualification.id.value,
+                    tenant_id=qualification.tenant_id.value,
+                    code=qualification.code,
+                    version=qualification.version,
+                    title=qualification.title,
+                    consent_version=qualification.consent_version,
+                    consent_purpose=qualification.consent_purpose,
+                    definition=schema_definition(qualification),
+                    grade_bands=[
+                        {"minimum_score": band.minimum_score, "grade": band.grade}
+                        for band in qualification.grade_bands
+                    ],
+                    session_ttl_minutes=int(qualification.session_ttl.total_seconds() // 60),
+                    handoff_response_minutes=qualification.handoff_response_minutes,
+                    published=qualification.published,
+                    active=qualification.active,
+                    config_version=1,
+                )
+                .on_conflict_do_update(
+                    index_elements=["id"],
+                    set_={
+                        "title": qualification.title,
+                        "consent_version": qualification.consent_version,
+                        "consent_purpose": qualification.consent_purpose,
+                        "definition": schema_definition(qualification),
+                        "grade_bands": [
+                            {"minimum_score": band.minimum_score, "grade": band.grade}
+                            for band in qualification.grade_bands
+                        ],
+                        "session_ttl_minutes": int(qualification.session_ttl.total_seconds() // 60),
+                        "handoff_response_minutes": qualification.handoff_response_minutes,
+                        "published": True,
+                        "active": True,
+                    },
+                )
+            )
             await session.execute(
                 insert(BookingPolicyRow)
                 .values(

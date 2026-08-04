@@ -61,12 +61,16 @@ class Lead:
     priority: LeadPriority | None = None
     score_explanation: Mapping[str, Any] | None = None
     consent_at: datetime | None = None
+    qualification_snapshot: Mapping[str, Any] | None = None
+    qualified_at: datetime | None = None
 
     def __post_init__(self) -> None:
         if not self.schema_code.strip() or self.schema_version < 1 or not self.source.strip():
             raise ValidationError("Lead schema identity and source are required")
         if self.consent_at is not None:
             ensure_aware(self.consent_at, "consent_at")
+        if self.qualified_at is not None:
+            ensure_aware(self.qualified_at, "qualified_at")
         if self.score is not None and not 0 <= self.score <= 100:
             raise ValidationError("Lead score must be between 0 and 100")
 
@@ -99,9 +103,15 @@ class Lead:
     def grant_consent(self, at: datetime) -> None:
         self.consent_at = ensure_aware(at, "consent_at")
 
-    def qualify(self) -> None:
+    def qualify(
+        self, *, snapshot: Mapping[str, Any] | None = None, qualified_at: datetime | None = None
+    ) -> None:
         if self.consent_at is None or self.score is None or self.priority is None:
             raise ValidationError(
                 "Lead requires consent and deterministic scoring before qualification"
             )
         self.transition_to(LeadStatus.QUALIFIED)
+        if snapshot is not None:
+            self.qualification_snapshot = MappingProxyType(dict(snapshot))
+        if qualified_at is not None:
+            self.qualified_at = ensure_aware(qualified_at, "qualified_at")

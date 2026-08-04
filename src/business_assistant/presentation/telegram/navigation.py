@@ -6,6 +6,11 @@ from business_assistant.application.bookings import BookingApplication
 from business_assistant.application.catalog import GetService, ListServiceCategories, ListServices
 from business_assistant.application.common.errors import CategoryNotFoundError
 from business_assistant.application.common.security import Principal, Role
+from business_assistant.application.handoffs import HandoffApplication, HandoffView
+from business_assistant.application.leads import (
+    QualificationApplication,
+    QualificationSessionStatus,
+)
 from business_assistant.application.scheduling import (
     GetBusinessHours,
     GetBusinessStatus,
@@ -13,7 +18,13 @@ from business_assistant.application.scheduling import (
 )
 from business_assistant.application.telegram import TelegramIdentity
 from business_assistant.application.tenants import GetTenantPublicProfile
-from business_assistant.domain.shared import BookingDraftId, BookingId, CategoryId, ServiceId
+from business_assistant.domain.shared import (
+    BookingDraftId,
+    BookingId,
+    CategoryId,
+    QualificationSessionId,
+    ServiceId,
+)
 
 from .callbacks import booking_date_from_page, booking_slot_page
 from .models import RenderedMessage
@@ -31,6 +42,8 @@ class TelegramNavigationServices:
     next_opening: GetNextOpening
     renderer: TelegramRenderer
     bookings: BookingApplication | None = None
+    qualifications: QualificationApplication | None = None
+    handoffs: HandoffApplication | None = None
 
 
 class TelegramNavigation:
@@ -42,6 +55,18 @@ class TelegramNavigation:
         if self._services.bookings is None:
             raise RuntimeError("Booking application is not configured")
         return self._services.bookings
+
+    @property
+    def _qualification_app(self) -> QualificationApplication:
+        if self._services.qualifications is None:
+            raise RuntimeError("Qualification application is not configured")
+        return self._services.qualifications
+
+    @property
+    def _handoff_app(self) -> HandoffApplication:
+        if self._services.handoffs is None:
+            raise RuntimeError("Handoff application is not configured")
+        return self._services.handoffs
 
     @staticmethod
     def _principal(identity: TelegramIdentity) -> Principal:
@@ -168,7 +193,109 @@ class TelegramNavigation:
 
     async def cancel_flow(self, identity: TelegramIdentity) -> RenderedMessage:
         await self._booking_app.abandon(identity)
+        if self._services.qualifications is not None:
+            await self._services.qualifications.cancel(identity)
         return self._services.renderer.cancelled()
+
+    async def start_qualification(self, identity: TelegramIdentity) -> RenderedMessage:
+        session, schema = await self._qualification_app.start(identity)
+        if session.status is QualificationSessionStatus.AWAITING_CONSENT:
+            return self._services.renderer.qualification_consent(session, schema)
+        if session.status is QualificationSessionStatus.REVIEWING:
+            return self._services.renderer.qualification_review(session, schema)
+        field = next(
+            (item for item in schema.fields if item.key == session.current_field_key), None
+        )
+        if field is None:
+            raise ValueError("Qualification state is invalid")
+        return self._services.renderer.qualification_question(field)
+
+    async def qualification_consent(
+        self,
+        identity: TelegramIdentity,
+        session_id: QualificationSessionId,
+        *,
+        accepted: bool,
+        update_key: str,
+    ) -> RenderedMessage:
+        _, field = await self._qualification_app.consent(identity, session_id, accepted, update_key)
+        if not accepted:
+            return self._services.renderer.qualification_declined()
+        if field is None:
+            active = await self._qualification_app.active(identity)
+            if active is None:
+                raise ValueError("Qualification review is unavailable")
+            return self._services.renderer.qualification_review(active[0], active[1])
+        return self._services.renderer.qualification_question(field)
+
+    async def qualification_text(
+        self, identity: TelegramIdentity, value: str, update_key: str
+    ) -> RenderedMessage | None:
+        if self._services.qualifications is None:
+            return None
+        active = await self._qualification_app.active(identity)
+        if active is None or active[0].status is not QualificationSessionStatus.IN_PROGRESS:
+            return None
+        session, next_field = await self._qualification_app.answer(identity, value, update_key)
+        if next_field is not None:
+            return self._services.renderer.qualification_question(next_field)
+        current = await self._qualification_app.active(identity)
+        if current is None:
+            raise ValueError("Qualification review is unavailable")
+        return self._services.renderer.qualification_review(session, current[1])
+
+    async def edit_qualification(
+        self,
+        identity: TelegramIdentity,
+        session_id: QualificationSessionId,
+        field_order: int,
+    ) -> RenderedMessage:
+        active = await self._qualification_app.active(identity)
+        if active is None:
+            raise ValueError("Qualification is unavailable")
+        field = next((item for item in active[1].fields if item.order == field_order), None)
+        if field is None:
+            raise ValueError("Qualification field is unavailable")
+        edited = await self._qualification_app.edit(identity, session_id, field.key)
+        return self._services.renderer.qualification_question(edited)
+
+    async def submit_qualification(
+        self,
+        identity: TelegramIdentity,
+        session_id: QualificationSessionId,
+        update_key: str,
+    ) -> RenderedMessage:
+        await self._qualification_app.submit(identity, session_id, update_key)
+        handoff = await self.paused(identity)
+        return (
+            self._services.renderer.handoff(handoff)
+            if handoff is not None
+            else self._services.renderer.qualification_completed()
+        )
+
+    async def human_help(self, identity: TelegramIdentity, *, update_key: str) -> RenderedMessage:
+        if self._services.handoffs is None:
+            return self._services.renderer.human_placeholder()
+        active = await self._handoff_app.active(identity)
+        if active is None:
+            active = await self._handoff_app.request(
+                identity,
+                reason_code="explicit_manager_request",
+                priority="normal",
+                summary="Customer explicitly requested human assistance.",
+                idempotency_key=update_key,
+            )
+        return self._services.renderer.handoff(active)
+
+    async def unsupported(self, identity: TelegramIdentity, *, update_key: str) -> RenderedMessage:
+        if self._services.handoffs is None:
+            return self._services.renderer.unknown()
+        return await self.human_help(identity, update_key=update_key)
+
+    async def paused(self, identity: TelegramIdentity) -> HandoffView | None:
+        if self._services.handoffs is None:
+            return None
+        return await self._services.handoffs.active(identity)
 
     async def my_booking(self, identity: TelegramIdentity) -> RenderedMessage:
         booking = await self._booking_app.latest(identity)

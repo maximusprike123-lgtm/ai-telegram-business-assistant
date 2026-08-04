@@ -802,6 +802,8 @@ class LeadRow(Base):
     priority: Mapped[str | None] = mapped_column(String(16))
     score_explanation: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    qualification_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    qualified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -818,7 +820,23 @@ class HandoffCaseRow(Base):
             ["conversations.tenant_id", "conversations.id"],
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["tenant_id", "customer_id"],
+            ["customers.tenant_id", "customers.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "lead_id"],
+            ["leads.tenant_id", "leads.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "booking_id"],
+            ["bookings.tenant_id", "bookings.id"],
+            ondelete="RESTRICT",
+        ),
         UniqueConstraint("tenant_id", "id"),
+        UniqueConstraint("tenant_id", "idempotency_key"),
         CheckConstraint(
             "status IN ('queued','claimed','resolved','reopened','cancelled')",
             name="status_allowed",
@@ -836,11 +854,16 @@ class HandoffCaseRow(Base):
         PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
     )
     conversation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    customer_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    lead_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    booking_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     reason_code: Mapped[str] = mapped_column(String(100), nullable=False)
     priority: Mapped[str] = mapped_column(String(16), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     assignee_id: Mapped[str | None] = mapped_column(String(100))
     summary: Mapped[str] = mapped_column(Text, nullable=False)
+    context: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    idempotency_key: Mapped[str | None] = mapped_column(String(255))
     response_due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -848,6 +871,175 @@ class HandoffCaseRow(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+
+class QualificationSchemaRow(Base):
+    __tablename__ = "qualification_schemas"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id"),
+        UniqueConstraint("tenant_id", "code", "version"),
+        CheckConstraint("version >= 1", name="version_positive"),
+        CheckConstraint("config_version >= 1", name="config_version_positive"),
+        CheckConstraint("session_ttl_minutes BETWEEN 5 AND 10080", name="session_ttl_valid"),
+        CheckConstraint(
+            "handoff_response_minutes BETWEEN 1 AND 10080",
+            name="handoff_response_valid",
+        ),
+        Index(
+            "uq_qualification_schemas_tenant_published_code",
+            "tenant_id",
+            "code",
+            unique=True,
+            postgresql_where=text("published AND active"),
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    code: Mapped[str] = mapped_column(String(100), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    consent_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    consent_purpose: Mapped[str] = mapped_column(String(500), nullable=False)
+    definition: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    grade_bands: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    session_ttl_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    handoff_response_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    config_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+    __mapper_args__ = {"version_id_col": config_version}  # noqa: RUF012
+
+
+class QualificationSessionRow(Base):
+    __tablename__ = "qualification_sessions"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "customer_id"],
+            ["customers.tenant_id", "customers.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "conversation_id"],
+            ["conversations.tenant_id", "conversations.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "schema_id"],
+            ["qualification_schemas.tenant_id", "qualification_schemas.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "lead_id"],
+            ["leads.tenant_id", "leads.id"],
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("tenant_id", "id"),
+        CheckConstraint("schema_version >= 1", name="schema_version_positive"),
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(
+            "status IN ('awaiting_consent','in_progress','reviewing','completed',"
+            "'declined','cancelled','expired')",
+            name="status_allowed",
+        ),
+        CheckConstraint(
+            "consent_decision IS NULL OR consent_decision IN ('accepted','declined')",
+            name="consent_decision_allowed",
+        ),
+        Index(
+            "uq_qualification_sessions_tenant_identity_active",
+            "tenant_id",
+            "customer_id",
+            "conversation_id",
+            unique=True,
+            postgresql_where=text("status IN ('awaiting_consent','in_progress','reviewing')"),
+        ),
+        Index("ix_qualification_sessions_active_expiry", "status", "expires_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    customer_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    conversation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    schema_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    schema_code: Mapped[str] = mapped_column(String(100), nullable=False)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    answers: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    current_field_key: Mapped[str | None] = mapped_column(String(100))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consent_decision: Mapped[str | None] = mapped_column(String(16))
+    consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lead_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+    __mapper_args__ = {"version_id_col": revision}  # noqa: RUF012
+
+
+class QualificationConsentRow(Base):
+    __tablename__ = "qualification_consents"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "session_id"],
+            ["qualification_sessions.tenant_id", "qualification_sessions.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "customer_id"],
+            ["customers.tenant_id", "customers.id"],
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("tenant_id", "session_id"),
+        CheckConstraint("decision IN ('accepted','declined')", name="decision_allowed"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    session_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    customer_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    decision: Mapped[str] = mapped_column(String(16), nullable=False)
+    consent_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(500), nullable=False)
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class QualificationSessionUpdateRow(Base):
+    __tablename__ = "qualification_session_updates"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "session_id"],
+            ["qualification_sessions.tenant_id", "qualification_sessions.id"],
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("tenant_id", "update_key"),
+        Index("ix_qualification_updates_tenant_session", "tenant_id", "session_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    session_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    update_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    operation: Mapped[str] = mapped_column(String(50), nullable=False)
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class KnowledgeDocumentRow(Base):

@@ -1,4 +1,6 @@
 from datetime import date, datetime
+from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -107,3 +109,91 @@ class AvailabilitySlotResponse(BaseModel):
     local_date: date
     local_time: str
     timezone: str
+
+
+class QualificationValidationSchema(BaseModel):
+    min_length: int | None = Field(default=None, ge=0, le=4000)
+    max_length: int | None = Field(default=None, ge=1, le=4000)
+    minimum: Decimal | None = None
+    maximum: Decimal | None = None
+    options: tuple[str, ...] = Field(default=(), max_length=50)
+    pattern: str | None = Field(default=None, max_length=500)
+
+
+class QualificationScoreRuleSchema(BaseModel):
+    code: str = Field(min_length=1, max_length=100)
+    operator: Literal["equals", "contains", "gte", "lte"]
+    expected: str | int | Decimal | bool
+    points: int = Field(ge=-100, le=100)
+
+
+class QualificationHandoffRuleSchema(BaseModel):
+    code: str = Field(min_length=1, max_length=100)
+    operator: Literal["equals", "contains", "gte", "lte"]
+    expected: str | int | Decimal | bool
+    reason_code: str = Field(min_length=1, max_length=100)
+    priority: Literal["low", "normal", "high", "urgent"]
+
+
+class QualificationFieldSchema(BaseModel):
+    key: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]*$", max_length=100)
+    label: str = Field(min_length=1, max_length=200)
+    prompt: str = Field(min_length=1, max_length=1000)
+    field_type: Literal[
+        "short_text",
+        "long_text",
+        "single_choice",
+        "multi_choice",
+        "phone",
+        "email",
+        "integer",
+        "decimal",
+        "boolean",
+        "date",
+    ]
+    validation: QualificationValidationSchema
+    required: bool
+    order: int = Field(ge=0, le=100)
+    sensitivity: Literal["public", "personal", "sensitive"]
+    score_rules: tuple[QualificationScoreRuleSchema, ...] = Field(default=(), max_length=50)
+    handoff_triggers: tuple[QualificationHandoffRuleSchema, ...] = Field(default=(), max_length=50)
+
+
+class QualificationGradeSchema(BaseModel):
+    minimum_score: int = Field(ge=0, le=100)
+    grade: str = Field(min_length=1, max_length=20)
+
+
+class QualificationSchemaCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=100, pattern=r"^[a-z][a-z0-9_-]*$")
+    version: int = Field(ge=1)
+    title: str = Field(min_length=1, max_length=200)
+    consent_version: str = Field(min_length=1, max_length=50)
+    consent_purpose: str = Field(min_length=1, max_length=500)
+    fields: tuple[QualificationFieldSchema, ...] = Field(min_length=1, max_length=50)
+    grade_bands: tuple[QualificationGradeSchema, ...] = Field(min_length=1, max_length=20)
+    session_ttl_minutes: int = Field(ge=5, le=10080)
+    handoff_response_minutes: int = Field(ge=1, le=10080)
+    active: bool = True
+
+
+class QualificationSchemaResponse(QualificationSchemaCreate):
+    id: str
+    published: bool
+
+
+class HandoffResponse(BaseModel):
+    id: str
+    conversation_id: str
+    lead_id: str | None
+    reason_code: str
+    priority: str
+    status: str
+    summary: str
+    context: dict[str, object]
+    response_due_at: datetime
+    assignee_id: str | None
+
+
+class HandoffActionRequest(BaseModel):
+    action: Literal["claim", "resolve", "reopen", "return_to_bot"]

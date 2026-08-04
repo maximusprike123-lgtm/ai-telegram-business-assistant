@@ -36,6 +36,11 @@ class CallbackAction(StrEnum):
     APPOINTMENT_CANCEL = "ac"
     APPOINTMENT_CANCEL_CONFIRM = "ax"
     RESCHEDULE = "rs"
+    QUALIFY = "qf"
+    QUALIFY_CONSENT_ACCEPT = "qa"
+    QUALIFY_CONSENT_DECLINE = "qd"
+    QUALIFY_EDIT = "qe"
+    QUALIFY_SUBMIT = "qs"
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,6 +173,10 @@ class SignedCallbackCodec:
             CallbackAction.APPOINTMENT_CANCEL,
             CallbackAction.APPOINTMENT_CANCEL_CONFIRM,
             CallbackAction.RESCHEDULE,
+            CallbackAction.QUALIFY_CONSENT_ACCEPT,
+            CallbackAction.QUALIFY_CONSENT_DECLINE,
+            CallbackAction.QUALIFY_EDIT,
+            CallbackAction.QUALIFY_SUBMIT,
         }
         if action in entity_actions and entity_id is None:
             raise CallbackTokenError("Callback entity is required")
@@ -178,6 +187,7 @@ class SignedCallbackCodec:
             CallbackAction.CATEGORY,
             CallbackAction.BOOK_DATE,
             CallbackAction.BOOK_SLOT,
+            CallbackAction.QUALIFY_EDIT,
         }
         if action not in paged_actions and page is not None:
             raise CallbackTokenError("Callback page is not allowed")

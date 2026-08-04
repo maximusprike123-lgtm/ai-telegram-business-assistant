@@ -10,6 +10,7 @@ from business_assistant.infrastructure.persistence.seed import (
 )
 from business_assistant.infrastructure.persistence.sqlalchemy.models import (
     BookingPolicyRow,
+    QualificationSchemaRow,
     ResourceRow,
     ScheduleOverrideRow,
     ServiceResourceRow,
@@ -51,6 +52,9 @@ async def test_northstar_seed_is_complete_and_idempotent(
             select(func.count()).select_from(ServiceResourceRow)
         )
         policy_count = await session.scalar(select(func.count()).select_from(BookingPolicyRow))
+        qualification_count = await session.scalar(
+            select(func.count()).select_from(QualificationSchemaRow)
+        )
     assert tenant is not None
     assert category is not None
     assert profile is not None
@@ -75,6 +79,7 @@ async def test_northstar_seed_is_complete_and_idempotent(
     assert resource_count == 2
     assert assignment_count == 12
     assert policy_count == 1
+    assert qualification_count == 1
     assert {service.price.mode.value for service in services} == {
         "exact",
         "starting_from",

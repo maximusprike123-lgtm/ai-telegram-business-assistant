@@ -8,13 +8,20 @@ from aiogram import Bot
 from aiogram.client.session.base import BaseSession
 from aiogram.methods.base import TelegramMethod, TelegramType
 
+from business_assistant.application.handoffs import HandoffView
 from business_assistant.application.telegram import (
     TelegramBotBinding,
     TelegramIdentity,
     TelegramUpdateClaim,
     TelegramUpdateClaimResult,
 )
-from business_assistant.domain.shared import ConversationId, CustomerId, Locale, TenantId
+from business_assistant.domain.shared import (
+    ConversationId,
+    CustomerId,
+    HandoffId,
+    Locale,
+    TenantId,
+)
 from business_assistant.presentation.telegram import (
     CallbackAction,
     SignedCallbackCodec,
@@ -94,6 +101,11 @@ class FakeIdentityResolver:
 
 
 class FakeNavigation:
+    paused_result: HandoffView | None = None
+
+    async def paused(self, identity):
+        return self.paused_result
+
     async def home(self, identity):
         return RenderedMessage("home", show_reply_menu=True)
 
@@ -114,6 +126,15 @@ class FakeNavigation:
 
     async def booking_text(self, identity, value):
         return None
+
+    async def qualification_text(self, identity, value, update_key):
+        return None
+
+    async def unsupported(self, identity, *, update_key):
+        return TelegramRenderer().unknown()
+
+    async def human_help(self, identity, *, update_key):
+        return TelegramRenderer().human_placeholder()
 
 
 class FakeDelivery:
@@ -251,3 +272,46 @@ async def test_valid_repeated_and_malformed_callbacks_are_answered_with_recovery
     assert await dispatcher.feed_raw_update(bot, callback_update(22, "malformed")) == "processed"
     assert "no longer valid" in delivery.replaced[-1].text
     assert delivery.answered_callbacks == 3
+
+
+@pytest.mark.asyncio
+async def test_active_handoff_pauses_command_callback_and_free_text_routing() -> None:
+    bot, _, _, _, delivery, codec, identity, dispatcher = runtime_fixture()
+    FakeNavigation.paused_result = HandoffView(
+        HandoffId.new(),
+        identity.tenant_id,
+        identity.customer_id,
+        identity.conversation_id,
+        None,
+        "explicit_manager_request",
+        "normal",
+        "queued",
+        "Customer requested a person.",
+        {"timezone": "UTC"},
+        datetime(2026, 8, 4, 14, tzinfo=UTC),
+        None,
+    )
+    try:
+        await dispatcher.feed_raw_update(bot, private_message(30, "/catalog"))
+        await dispatcher.feed_raw_update(bot, private_message(31, "more details"))
+        assert all("Bot replies are paused" in item.text for item in delivery.sent[-2:])
+
+        token = codec.encode(identity.tenant_id, CallbackAction.HOME)
+        update = {
+            "update_id": 32,
+            "callback_query": {
+                "id": "callback-32",
+                "from": {"id": 100, "is_bot": False, "first_name": "Ignored"},
+                "chat_instance": "instance",
+                "data": token,
+                "message": {
+                    "message_id": 5,
+                    "date": 1_775_000_000,
+                    "chat": {"id": 100, "type": "private"},
+                },
+            },
+        }
+        await dispatcher.feed_raw_update(bot, update)
+        assert "Bot replies are paused" in delivery.replaced[-1].text
+    finally:
+        FakeNavigation.paused_result = None

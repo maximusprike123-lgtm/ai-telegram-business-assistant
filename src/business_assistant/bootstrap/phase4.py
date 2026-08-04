@@ -14,6 +14,11 @@ from business_assistant.application.bookings import BookingApplication
 from business_assistant.application.catalog import GetService, ListServiceCategories, ListServices
 from business_assistant.application.common.ports import Phase3UnitOfWork, Phase3UnitOfWorkFactory
 from business_assistant.application.common.security import Principal
+from business_assistant.application.handoffs import HandoffApplication
+from business_assistant.application.leads import (
+    QualificationAdministration,
+    QualificationApplication,
+)
 from business_assistant.application.scheduling import (
     GetBusinessHours,
     GetBusinessStatus,
@@ -26,6 +31,8 @@ from business_assistant.domain.shared import TenantId
 from business_assistant.infrastructure.observability import configure_logging
 from business_assistant.infrastructure.persistence import (
     SQLAlchemyBookingStore,
+    SQLAlchemyHandoffStore,
+    SQLAlchemyQualificationStore,
     SQLAlchemyTelegramIdentityStore,
     SQLAlchemyTelegramUpdateStore,
     create_engine,
@@ -119,6 +126,12 @@ def build_phase4_components(settings: RuntimeSettings) -> Phase4Components:
             GetNextOpening(typed_factory, clock),
             renderer,
             BookingApplication(SQLAlchemyBookingStore(session_factory), clock),
+            QualificationApplication(
+                SQLAlchemyQualificationStore(session_factory),
+                clock,
+                schema_code="service_request",
+            ),
+            HandoffApplication(SQLAlchemyHandoffStore(session_factory), clock),
         )
     )
     identity_store = SQLAlchemyTelegramIdentityStore(session_factory)
@@ -190,6 +203,8 @@ def _internal_api_app(
         GetNextOpening(uow_factory, clock),
         StaticApiKeyAuthenticator(security.internal_api_key, principal),
         BookingApplication(SQLAlchemyBookingStore(components.session_factory), clock),
+        QualificationAdministration(SQLAlchemyQualificationStore(components.session_factory)),
+        HandoffApplication(SQLAlchemyHandoffStore(components.session_factory), clock),
     )
     return create_phase3_app(services)
 

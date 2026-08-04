@@ -21,13 +21,29 @@ class Permission(StrEnum):
     CATALOG_READ = "catalog:read"
     SCHEDULE_READ = "schedule:read"
     BOOKING_READ = "booking:read"
+    LEAD_READ = "lead:read"
+    QUALIFICATION_SCHEMA_READ = "qualification_schema:read"
+    QUALIFICATION_SCHEMA_WRITE = "qualification_schema:write"
+    HANDOFF_READ = "handoff:read"
+    HANDOFF_WRITE = "handoff:write"
 
 
-_READ_PERMISSIONS = frozenset(Permission)
+_READ_PERMISSIONS = frozenset(
+    {
+        Permission.PUBLIC_PROFILE_READ,
+        Permission.CATALOG_READ,
+        Permission.SCHEDULE_READ,
+        Permission.BOOKING_READ,
+        Permission.LEAD_READ,
+        Permission.QUALIFICATION_SCHEMA_READ,
+        Permission.HANDOFF_READ,
+    }
+)
+_WRITE_PERMISSIONS = frozenset({Permission.QUALIFICATION_SCHEMA_WRITE, Permission.HANDOFF_WRITE})
 _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
-    Role.OWNER: _READ_PERMISSIONS,
-    Role.MANAGER: _READ_PERMISSIONS,
-    Role.AGENT: _READ_PERMISSIONS,
+    Role.OWNER: _READ_PERMISSIONS | _WRITE_PERMISSIONS,
+    Role.MANAGER: _READ_PERMISSIONS | _WRITE_PERMISSIONS,
+    Role.AGENT: _READ_PERMISSIONS | {Permission.HANDOFF_WRITE},
     Role.VIEWER: _READ_PERMISSIONS,
     Role.KNOWLEDGE_EDITOR: frozenset(),
 }

@@ -69,6 +69,18 @@ class LeadId(EntityId):
     pass
 
 
+class QualificationSchemaId(EntityId):
+    pass
+
+
+class QualificationSessionId(EntityId):
+    pass
+
+
+class ConsentId(EntityId):
+    pass
+
+
 class HandoffId(EntityId):
     pass
 

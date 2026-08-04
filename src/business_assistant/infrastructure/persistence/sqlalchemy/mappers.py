@@ -393,6 +393,10 @@ def lead_to_row(entity: Lead) -> LeadRow:
         priority=entity.priority.value if entity.priority else None,
         score_explanation=dict(entity.score_explanation) if entity.score_explanation else None,
         consent_at=entity.consent_at,
+        qualification_snapshot=(
+            dict(entity.qualification_snapshot) if entity.qualification_snapshot else None
+        ),
+        qualified_at=entity.qualified_at,
     )
 
 
@@ -411,6 +415,8 @@ def lead_from_row(row: LeadRow) -> Lead:
         LeadPriority(row.priority) if row.priority else None,
         row.score_explanation,
         row.consent_at,
+        row.qualification_snapshot,
+        row.qualified_at,
     )
 
 

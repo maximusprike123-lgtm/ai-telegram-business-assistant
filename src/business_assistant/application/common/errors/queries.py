@@ -80,3 +80,13 @@ class BookingExpiredError(ApplicationError):
 class BookingPolicyError(ApplicationError):
     def __init__(self, message: str) -> None:
         super().__init__("booking.policy", message)
+
+
+class QualificationError(ApplicationError):
+    def __init__(self, message: str = "Qualification request is invalid or unavailable") -> None:
+        super().__init__("qualification.invalid", message)
+
+
+class HandoffError(ApplicationError):
+    def __init__(self, message: str = "Human handoff request is invalid or unavailable") -> None:
+        super().__init__("handoff.invalid", message)

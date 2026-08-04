@@ -11,6 +11,13 @@ from business_assistant.application.bookings import (
     SlotHold,
 )
 from business_assistant.application.catalog import ServiceCategoryDTO, ServiceDTO
+from business_assistant.application.handoffs import HandoffView
+from business_assistant.application.leads import (
+    QualificationField,
+    QualificationSchema,
+    QualificationSession,
+    Sensitivity,
+)
 from business_assistant.application.scheduling import (
     BusinessDayDTO,
     BusinessStatusDTO,
@@ -73,6 +80,7 @@ class TelegramRenderer:
                     _button("Book appointment", CallbackAction.BOOK),
                     _button("My appointment", CallbackAction.MY_BOOKING),
                 ),
+                (_button("Request service", CallbackAction.QUALIFY),),
                 (
                     _button("Privacy", CallbackAction.PRIVACY),
                     _button("Human help", CallbackAction.HUMAN),
@@ -199,6 +207,115 @@ class TelegramRenderer:
         return RenderedMessage(
             "Human handoff is not enabled in this demo phase. No request has been created. "
             "Use the verified contact details on the home screen if you need assistance.",
+            ((_button("Home", CallbackAction.HOME),),),
+        )
+
+    def qualification_consent(
+        self, session: QualificationSession, schema: QualificationSchema
+    ) -> RenderedMessage:
+        return RenderedMessage(
+            f"<b>{_safe(schema.title)}</b>\n"
+            f"Before collecting request details, please review the purpose: "
+            f"{_safe(schema.consent_purpose)}\n\n"
+            f"Consent version: <code>{_safe(schema.consent_version)}</code>. "
+            "Accept to continue, or decline to finish without creating a lead.",
+            (
+                (
+                    _button(
+                        "Accept and continue",
+                        CallbackAction.QUALIFY_CONSENT_ACCEPT,
+                        str(session.id),
+                    ),
+                ),
+                (
+                    _button(
+                        "Decline",
+                        CallbackAction.QUALIFY_CONSENT_DECLINE,
+                        str(session.id),
+                    ),
+                ),
+            ),
+        )
+
+    def qualification_declined(self) -> RenderedMessage:
+        return RenderedMessage(
+            "Consent was declined. No lead was created and qualification has ended.",
+            ((_button("Home", CallbackAction.HOME),),),
+        )
+
+    def qualification_question(self, field: QualificationField) -> RenderedMessage:
+        choices = (
+            f"\nAllowed values: {_safe(', '.join(field.validation.options))}."
+            if field.validation.options
+            else ""
+        )
+        return RenderedMessage(
+            f"<b>{_safe(field.label)}</b>\n{_safe(field.prompt)}{choices}",
+            ((_button("Cancel request", CallbackAction.FLOW_CANCEL),),),
+        )
+
+    def qualification_correction(self, correction: str) -> RenderedMessage:
+        return RenderedMessage(
+            f"{_safe(correction)} Please try again.",
+            ((_button("Cancel request", CallbackAction.FLOW_CANCEL),),),
+        )
+
+    def qualification_review(
+        self, session: QualificationSession, schema: QualificationSchema
+    ) -> RenderedMessage:
+        lines = ["<b>Review your service request</b>"]
+        rows = []
+        for field in schema.fields:
+            value = session.answers.get(field.key)
+            shown = (
+                "Not provided"
+                if value is None
+                else ", ".join(value)
+                if isinstance(value, tuple)
+                else str(value)
+            )
+            if field.sensitivity is Sensitivity.SENSITIVE and field.field_type.value == "phone":
+                shown = f"ending {shown[-4:]}" if len(shown) >= 4 else "provided"
+            lines.append(f"<b>{_safe(field.label)}:</b> {_safe(shown)}")
+            rows.append(
+                (
+                    _button(
+                        f"Edit {field.label}",
+                        CallbackAction.QUALIFY_EDIT,
+                        str(session.id),
+                        field.order,
+                    ),
+                )
+            )
+        lines.append("\nSubmit only if every detail is correct.")
+        return RenderedMessage(
+            "\n".join(lines),
+            (
+                *rows[:6],
+                (_button("Submit request", CallbackAction.QUALIFY_SUBMIT, str(session.id)),),
+                (_button("Cancel request", CallbackAction.FLOW_CANCEL),),
+            ),
+        )
+
+    def qualification_completed(self) -> RenderedMessage:
+        return RenderedMessage(
+            "<b>Service request submitted</b>\nThe fictional Northstar team can now review "
+            "the validated details. This did not diagnose the vehicle or create an appointment.",
+            ((_button("Home", CallbackAction.HOME),),),
+        )
+
+    def handoff(self, handoff: HandoffView) -> RenderedMessage:
+        timezone = str(handoff.context.get("timezone", "UTC"))
+        local_due = handoff.response_due_at.astimezone(ZoneInfo(timezone))
+        state = (
+            "A team member is handling this request."
+            if handoff.status == "claimed"
+            else "The request is queued for a team member."
+        )
+        return RenderedMessage(
+            f"<b>Human help · {_safe(handoff.status)}</b>\n{_safe(state)} "
+            f"Expected response by {local_due.strftime('%A, %d %B %Y at %H:%M')} "
+            f"({_safe(timezone)}). Bot replies are paused until staff returns control.",
             ((_button("Home", CallbackAction.HOME),),),
         )
 

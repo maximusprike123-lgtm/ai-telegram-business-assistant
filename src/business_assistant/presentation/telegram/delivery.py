@@ -22,9 +22,10 @@ from .models import RenderedMessage
 
 REPLY_MENU = (
     ("Book appointment", "My appointment"),
+    ("Request service", "Human help"),
     ("Services", "Business hours"),
-    ("Privacy", "Human help"),
-    ("Help", "Cancel"),
+    ("Privacy", "Help"),
+    ("Cancel",),
 )
 
 

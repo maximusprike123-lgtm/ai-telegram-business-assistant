@@ -57,6 +57,10 @@ async def test_schema_has_required_extensions_tables_and_constraints(
             "resource_unavailability",
             "booking_drafts",
             "slot_holds",
+            "qualification_schemas",
+            "qualification_sessions",
+            "qualification_consents",
+            "qualification_session_updates",
         } <= tables
         assert exclusion == 1
     finally:

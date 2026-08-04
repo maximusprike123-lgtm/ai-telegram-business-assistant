@@ -1,7 +1,7 @@
 """Thin authenticated Phase 3 FastAPI presentation adapter."""
 
-from dataclasses import dataclass
-from datetime import date, datetime
+from dataclasses import asdict, dataclass
+from datetime import date, datetime, timedelta
 from typing import Annotated, Any
 from uuid import UUID, uuid4
 
@@ -20,6 +20,19 @@ from business_assistant.application.catalog import (
 )
 from business_assistant.application.common.errors import ApplicationError
 from business_assistant.application.common.security import Principal
+from business_assistant.application.handoffs import HandoffApplication, HandoffView
+from business_assistant.application.leads import (
+    FieldValidation,
+    GradeBand,
+    HandoffTrigger,
+    MatchOperator,
+    QualificationAdministration,
+    QualificationField,
+    QualificationFieldType,
+    QualificationSchema,
+    ScoreRule,
+    Sensitivity,
+)
 from business_assistant.application.scheduling import (
     BusinessDayDTO,
     BusinessStatusDTO,
@@ -29,7 +42,12 @@ from business_assistant.application.scheduling import (
     NextOpeningDTO,
 )
 from business_assistant.application.tenants import GetTenantPublicProfile, TenantPublicProfileDTO
-from business_assistant.domain.shared import CategoryId, ServiceId
+from business_assistant.domain.shared import (
+    CategoryId,
+    HandoffId,
+    QualificationSchemaId,
+    ServiceId,
+)
 from business_assistant.infrastructure.security import StaticApiKeyAuthenticator
 
 from .schemas import (
@@ -38,7 +56,11 @@ from .schemas import (
     BusinessStatusResponse,
     CategoryResponse,
     ErrorResponse,
+    HandoffActionRequest,
+    HandoffResponse,
     NextOpeningResponse,
+    QualificationSchemaCreate,
+    QualificationSchemaResponse,
     ServiceResponse,
     TenantProfileResponse,
 )
@@ -55,6 +77,90 @@ class Phase3ApiServices:
     next_opening: GetNextOpening
     authenticator: StaticApiKeyAuthenticator
     bookings: BookingApplication | None = None
+    qualification_admin: QualificationAdministration | None = None
+    handoffs: HandoffApplication | None = None
+
+
+def _schema_response(schema: QualificationSchema) -> QualificationSchemaResponse:
+    payload = asdict(schema)
+    payload["id"] = str(schema.id)
+    payload["session_ttl_minutes"] = int(schema.session_ttl.total_seconds() // 60)
+    payload.pop("tenant_id")
+    payload.pop("session_ttl")
+    return QualificationSchemaResponse.model_validate(payload)
+
+
+def _handoff_response(handoff: HandoffView) -> HandoffResponse:
+    return HandoffResponse(
+        id=str(handoff.id),
+        conversation_id=str(handoff.conversation_id),
+        lead_id=str(handoff.lead_id) if handoff.lead_id else None,
+        reason_code=handoff.reason_code,
+        priority=handoff.priority,
+        status=handoff.status,
+        summary=handoff.summary,
+        context=handoff.context,
+        response_due_at=handoff.response_due_at,
+        assignee_id=handoff.assignee_id,
+    )
+
+
+def _qualification_schema(
+    principal: Principal, request: QualificationSchemaCreate
+) -> QualificationSchema:
+    return QualificationSchema(
+        QualificationSchemaId.new(),
+        principal.tenant_id,
+        request.code,
+        request.version,
+        request.title,
+        request.consent_version,
+        request.consent_purpose,
+        tuple(
+            QualificationField(
+                item.key,
+                item.label,
+                item.prompt,
+                QualificationFieldType(item.field_type),
+                FieldValidation(
+                    item.validation.min_length,
+                    item.validation.max_length,
+                    item.validation.minimum,
+                    item.validation.maximum,
+                    item.validation.options,
+                    item.validation.pattern,
+                ),
+                item.required,
+                item.order,
+                Sensitivity(item.sensitivity),
+                tuple(
+                    ScoreRule(
+                        rule.code,
+                        MatchOperator(rule.operator),
+                        rule.expected,
+                        rule.points,
+                    )
+                    for rule in item.score_rules
+                ),
+                tuple(
+                    HandoffTrigger(
+                        rule.code,
+                        MatchOperator(rule.operator),
+                        rule.expected,
+                        rule.reason_code,
+                        rule.priority,
+                    )
+                    for rule in item.handoff_triggers
+                ),
+            )
+            for item in request.fields
+        ),
+        tuple(GradeBand(item.minimum_score, item.grade) for item in request.grade_bands),
+        timedelta(minutes=request.session_ttl_minutes),
+        request.handoff_response_minutes,
+        False,
+        request.active,
+    )
 
 
 def _correlation_id(request: Request) -> str:
@@ -71,6 +177,8 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
             {"name": "Catalog", "description": "Localized active service catalog"},
             {"name": "Schedule", "description": "Tenant-local business hours"},
             {"name": "Booking", "description": "Resource-aware appointment availability"},
+            {"name": "Qualification", "description": "Versioned lead qualification schemas"},
+            {"name": "Handoff", "description": "Authorized human handoff operations"},
         ],
     )
     key_header = APIKeyHeader(
@@ -154,6 +262,18 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
             content={
                 "code": "internal.error",
                 "message": "The request could not be completed",
+                "correlation_id": _correlation_id(request),
+            },
+        )
+
+    @app.exception_handler(ValueError)
+    async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
+        _ = exc
+        return JSONResponse(
+            status_code=422,
+            content={
+                "code": "request.invalid",
+                "message": "Request validation failed",
                 "correlation_id": _correlation_id(request),
             },
         )
@@ -286,5 +406,84 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
             return await booking_application.availability(
                 principal, ServiceId(service_id), local_date
             )
+
+    qualification_admin = services.qualification_admin
+    if qualification_admin is not None:
+
+        @app.get(
+            "/api/v1/qualification-schemas",
+            response_model=list[QualificationSchemaResponse],
+            tags=["Qualification"],
+            summary="List qualification schema versions",
+            responses=error_responses,
+        )
+        async def list_qualification_schemas(
+            principal: PrincipalDependency,
+        ) -> list[QualificationSchemaResponse]:
+            schemas = await qualification_admin.list_schemas(principal)
+            return [_schema_response(schema) for schema in schemas]
+
+        @app.post(
+            "/api/v1/qualification-schemas",
+            response_model=QualificationSchemaResponse,
+            status_code=201,
+            tags=["Qualification"],
+            summary="Create an unpublished qualification schema version",
+            responses=error_responses,
+        )
+        async def create_qualification_schema(
+            request: QualificationSchemaCreate,
+            principal: PrincipalDependency,
+        ) -> QualificationSchemaResponse:
+            schema = _qualification_schema(principal, request)
+            return _schema_response(await qualification_admin.add_schema(principal, schema))
+
+        @app.post(
+            "/api/v1/qualification-schemas/{schema_id}/publish",
+            response_model=QualificationSchemaResponse,
+            tags=["Qualification"],
+            summary="Publish one qualification schema version",
+            responses=error_responses,
+        )
+        async def publish_qualification_schema(
+            schema_id: UUID,
+            principal: PrincipalDependency,
+        ) -> QualificationSchemaResponse:
+            schema = await qualification_admin.publish(principal, QualificationSchemaId(schema_id))
+            return _schema_response(schema)
+
+    handoff_application = services.handoffs
+    if handoff_application is not None:
+
+        @app.get(
+            "/api/v1/handoffs",
+            response_model=list[HandoffResponse],
+            tags=["Handoff"],
+            summary="List open handoff cases",
+            responses=error_responses,
+        )
+        async def list_handoffs(
+            principal: PrincipalDependency,
+            limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        ) -> list[HandoffResponse]:
+            handoffs = await handoff_application.list_open(principal, limit=limit)
+            return [_handoff_response(handoff) for handoff in handoffs]
+
+        @app.post(
+            "/api/v1/handoffs/{handoff_id}/actions",
+            response_model=HandoffResponse,
+            tags=["Handoff"],
+            summary="Apply an authorized handoff lifecycle action",
+            responses=error_responses,
+        )
+        async def transition_handoff(
+            handoff_id: UUID,
+            request: HandoffActionRequest,
+            principal: PrincipalDependency,
+        ) -> HandoffResponse:
+            handoff = await handoff_application.transition(
+                principal, HandoffId(handoff_id), request.action
+            )
+            return _handoff_response(handoff)
 
     return app

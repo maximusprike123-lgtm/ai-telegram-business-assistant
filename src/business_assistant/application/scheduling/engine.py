@@ -128,3 +128,38 @@ def next_opening(
             if candidate.astimezone(UTC) > at.astimezone(UTC):
                 return False, candidate, local, offset
     return False, None, local, search_horizon_days
+
+
+def business_due_at(
+    schedule: BusinessSchedule,
+    at: datetime,
+    service_time: timedelta,
+    *,
+    search_horizon_days: int = 370,
+) -> datetime:
+    """Add elapsed time only inside effective business intervals."""
+    require_aware(at)
+    if service_time <= timedelta(0):
+        raise InvalidScheduleError("Business response time must be positive")
+    zone = ZoneInfo(schedule.timezone)
+    cursor = at.astimezone(UTC)
+    remaining = service_time
+    local_start = at.astimezone(zone).date()
+    for offset in range(search_horizon_days + 1):
+        local_date = local_start + timedelta(days=offset)
+        for start, end in effective_day(schedule, local_date).intervals:
+            interval_start = resolve_local_boundary(
+                datetime.combine(local_date, start), zone, opening=True
+            ).astimezone(UTC)
+            interval_end = resolve_local_boundary(
+                datetime.combine(local_date, end), zone, opening=False
+            ).astimezone(UTC)
+            available_from = max(cursor, interval_start)
+            if available_from >= interval_end:
+                continue
+            available = interval_end - available_from
+            if remaining <= available:
+                return available_from + remaining
+            remaining -= available
+            cursor = interval_end
+    raise InvalidScheduleError("No business-hours response deadline exists within the horizon")

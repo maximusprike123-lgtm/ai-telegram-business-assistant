@@ -7,7 +7,8 @@
 - PostgreSQL 18 with pgvector and `btree_gist` is required for the integration gate.
 - FastAPI serves the protected business API and authenticated Telegram webhook. aiogram 3 is the
   Telegram presentation adapter. Phase 5 booking and Phase 6 qualification/handoff transactions
-  require PostgreSQL; Redis, Celery, and OpenAI remain disabled and are not required.
+  require PostgreSQL. Phase 7 AI tests use an injected HTTP transport and never require provider
+  credentials or network access; Redis, Celery, and AI remain disabled by default.
 
 ## First setup
 
@@ -44,13 +45,15 @@ The database user must be able to create the `vector` and `btree_gist` extension
 coverage should remain higher where business consequences are involved. Do not lower a gate to
 make a change pass.
 
-Focused Phase 3 through Phase 6 checks can be run with:
+Focused Phase 3 through Phase 7 checks can be run with:
 
 ```bash
 pytest tests/unit/test_configuration.py tests/unit/test_phase3_queries.py \
   tests/unit/test_schedule_engine.py tests/unit/test_telegram_application.py \
   tests/unit/test_telegram_rendering.py tests/unit/test_telegram_dispatcher.py tests/api
 pytest tests/unit/test_phase6_rules.py tests/integration/test_phase6_qualification.py
+pytest tests/unit/test_ai_runtime.py tests/unit/test_openai_adapter.py \
+  tests/integration/test_phase7_ai_telemetry.py
 pytest -m postgresql
 alembic check
 ```
@@ -77,6 +80,8 @@ The [booking runbook](operations/phase-5-booking.md) documents demo policy, tran
 manual hold expiry, privacy boundaries, and deferred behavior.
 The [Phase 6 runbook](operations/phase-6-leads-handoff.md) documents consent, lead scoring,
 handoff pause/control, and the notification delivery boundary.
+The [Phase 7 runbook](operations/phase-7-ai-runtime.md) documents the kill switch, provider/model
+policy, safe fallbacks, metadata-only telemetry, and rollback.
 
 ## Git hooks
 

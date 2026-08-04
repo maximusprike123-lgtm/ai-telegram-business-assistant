@@ -20,7 +20,9 @@ knowledge answers, lead qualification, booking, and human handoff.
   appointment confirmation, cancellation/rescheduling, and English-only Telegram booking
 - Phase 6: versioned consent and qualification, deterministic validation/scoring, durable lead
   sessions, business-hours-aware human handoff, staff lifecycle API, and Telegram integration
-- Phases 7–13: not implemented
+- Phase 7: provider-neutral AI runtime, strict structured outputs, versioned prompts/model policy,
+  confidence gating, metadata-only telemetry, Responses adapter, and deterministic degradation
+- Phases 8–13: not implemented
 
 The current code is deliberately not a chatbot. Consequential operations belong to validated
 application and domain workflows; future AI output remains advisory until it passes structured,
@@ -106,6 +108,8 @@ Availability rules, booking transactions, expiry, and fictional demo policy are 
 [Phase 5 booking runbook](docs/operations/phase-5-booking.md).
 Consent, qualification, lead scoring, and handoff operations are in the
 [Phase 6 leads and handoff runbook](docs/operations/phase-6-leads-handoff.md).
+Provider configuration, safe degradation, privacy, and telemetry operations are in the
+[Phase 7 AI runtime runbook](docs/operations/phase-7-ai-runtime.md).
 
 ## Repository layout
 
@@ -136,6 +140,7 @@ docs/
 - [Phase 4 traceability](docs/phase-4-traceability.md)
 - [Phase 5 traceability](docs/phase-5-traceability.md)
 - [Phase 6 traceability](docs/phase-6-traceability.md)
+- [Phase 7 traceability](docs/phase-7-traceability.md)
 
 The implementation specification remains the source of truth. Documentation in this repository
 records decisions and implementation status; it does not replace the specification.

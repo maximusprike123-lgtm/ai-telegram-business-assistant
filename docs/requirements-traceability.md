@@ -16,15 +16,15 @@ not acceptance by itself.
 | FR-010 | 4 | Implemented: deterministic command, menu, callback, and unknown-text routing |
 | FR-011 | 3, 4 | Implemented: validated profile/catalog lookup exposed through Telegram navigation |
 | FR-012 | 8 | Planned: published tenant-scoped retrieval |
-| FR-013 | 7, 8 | Planned: evidence threshold and safe refusal |
+| FR-013 | 7, 8 | Phase 7 confidence threshold, provider refusal, and safe fallback implemented; retrieval evidence remains Phase 8 |
 | FR-014 | 2, 8 | Citation value object and versioned knowledge lineage schema implemented; answer use planned |
-| FR-015 | 6, 7 | Phase 6 structured safety rules and boundary handoff implemented; free-text classification remains Phase 7 |
+| FR-015 | 6, 7 | Implemented: structured safety rules plus allowlisted free-text risk classification with deterministic safe fallback |
 | FR-020 | 3, 4 | Implemented: active catalog category/service navigation with bounded signed pagination |
 | FR-021 | 3 | Implemented: localized service detail, duration, and public price query |
 | FR-022 | 1, 3 | Implemented: price presentation invariants and tests |
 | FR-023 | 1, 2, 3 | Implemented: public queries enforce active service and category state |
 | FR-030 | 6 | Implemented: tenant-owned versioned typed schemas with protected draft/publish operations |
-| FR-031 | 6, 7 | Deterministic validation, missing-field prompts, and review implemented; AI extraction remains Phase 7 |
+| FR-031 | 6, 7 | Implemented: deterministic validation/review plus schema-allowlisted advisory AI extraction; application rules remain authoritative |
 | FR-032 | 6 | Implemented: individual persisted answer edit without workflow restart |
 | FR-033 | 1, 6 | Implemented: configured deterministic rules, bounded score, grade, and matched explanation |
 | FR-034 | 1, 2, 6 | Implemented: consent, source, schema snapshot, score, timestamps, and lead lifecycle use case |
@@ -49,7 +49,7 @@ not acceptance by itself.
 | FR-064 | 4, 5, 9 | Implemented for booking: `/cancel` releases active draft/hold without cancelling appointments |
 | FR-065 | 9, 11 | Planned: retention and anonymization workflow |
 | FR-070 | 4, 6 | Implemented: explicit Telegram human request creates/reuses a durable case |
-| FR-071 | 6, 7 | Explicit, unsupported, and structured safety triggers implemented; AI/repeated-failure triggers remain Phase 7 |
+| FR-071 | 6, 7 | Explicit, unsupported, structured-safety, AI refusal/low-confidence, and unsafe-output handoff fallbacks implemented; repeated-failure policy remains deferred |
 | FR-072 | 2, 6 | Implemented: linked case, priority, safe structured context, summary, status, and due timestamp |
 | FR-073 | 6, 10 | Idempotent outbox notification intent implemented; recipients/delivery remain Phase 10 |
 | FR-074 | 1, 6 | Implemented: conversation generative-reply pause policy |
@@ -74,6 +74,7 @@ not acceptance by itself.
 | PostgreSQL/pgvector (7.3, 9) | Async adapter, initial migration, extensions, vector/full-text columns | 8 retrieval |
 | Transactional outbox (7.3) | Tenant-scoped durable schema in same database | 10 delivery |
 | Privacy/logging (15, 17) | ADR 0004, environment policy, secret scan | 9, 11 |
+| AI gateway/safety (7.4, 12, 16) | Provider-neutral port, versioned prompts/policies, strict schemas, application validation, metadata-only telemetry | 8 evidence grounding |
 | CI quality baseline (21, 22) | Ruff, mypy, API/unit/PostgreSQL tests, coverage, build, secret scan | Expanded each phase |
 | Docker/runtime (19) | Explicitly deferred | 12 |
 | Telegram delivery/idempotency (10, 16, 18) | Authenticated webhook, development polling, durable lifecycle, safe callbacks/logs | 10 outbound outbox, 11 hardening |

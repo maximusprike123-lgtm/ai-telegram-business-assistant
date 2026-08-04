@@ -1,4 +1,4 @@
-# Database runbook through Phase 6
+# Database runbook through Phase 7
 
 Phase 2 supports PostgreSQL only. Use a disposable database for tests; migration tests remove and
 recreate the application schema. The database role needs permission to create the `vector` and
@@ -30,6 +30,9 @@ validated from an empty database and through a downgrade/upgrade round trip.
 Revision `0005_phase6` adds qualification schema/session/consent/update tables, lead completion
 snapshots, and linked/idempotent handoff context. It preserves the Phase 2 lead and handoff tables
 and extends them through reversible constraints and indexes.
+Revision `0006_phase7` adds metadata-only AI operation telemetry. It records tenant/conversation
+identity, correlation and version identifiers, status, latency, token counts, cost estimate, and a
+safe failure code. Prompts, provider payloads, customer text, and generated text are not stored.
 
 ## Seed the fictional demo
 

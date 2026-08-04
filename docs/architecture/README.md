@@ -42,6 +42,12 @@ input is deterministically validated and scored, consequential state is committe
 Telegram renders only the resulting application state. Active handoff state is checked before bot
 workflow routing.
 
+Phase 7 adds an optional provider-neutral runtime behind application ports. Its pipeline is strict
+provider schema validation, application allowlists, a task business validator, confidence policy,
+and only then an advisory result. Telegram accepts three read-only advisory routes; every failure
+or other intent returns to deterministic behavior. AI operation telemetry is metadata-only, and
+no tool-calling surface exists in this phase.
+
 ## Decision records
 
 The [ADR index](decisions.md) records binding baseline choices. Later phases may supersede an ADR

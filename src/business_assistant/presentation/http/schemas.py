@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -10,6 +11,101 @@ class ErrorResponse(BaseModel):
     message: str = Field(examples=["Service was not found"])
     correlation_id: str
     details: list[dict[str, str]] | None = None
+
+
+class TenantProvisionRequest(BaseModel):
+    tenant_id: UUID
+    slug: str = Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", min_length=1, max_length=100)
+    name: str = Field(min_length=1, max_length=200)
+    timezone: str = Field(min_length=1, max_length=100)
+    default_locale: Literal["en"] = "en"
+    owner_subject: str = Field(min_length=1, max_length=200)
+    credential_name: str = Field(min_length=1, max_length=100)
+    idempotency_key: str = Field(min_length=8, max_length=200)
+    enabled_capabilities: frozenset[
+        Literal[
+            "telegram",
+            "booking",
+            "qualification",
+            "ai_routing",
+            "knowledge_answers",
+            "background_notifications",
+            "automatic_retention",
+        ]
+    ] = frozenset()
+
+
+class TenantAdminUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    timezone: str = Field(min_length=1, max_length=100)
+    default_locale: Literal["en"] = "en"
+    expected_version: int = Field(ge=1)
+
+
+class TenantAdminResponse(BaseModel):
+    id: UUID
+    slug: str
+    name: str
+    timezone: str
+    default_locale: str
+    supported_locales: tuple[str, ...]
+    status: Literal["active", "suspended", "archived"]
+    settings_version: int
+
+
+class TenantMemberUpsert(BaseModel):
+    subject: str = Field(min_length=1, max_length=200)
+    role: Literal["owner", "manager", "agent", "knowledge_editor", "viewer"]
+
+
+class TenantMemberResponse(BaseModel):
+    id: UUID
+    subject: str
+    role: str
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class CredentialCreate(BaseModel):
+    member_id: UUID
+    name: str = Field(min_length=1, max_length=100)
+    expires_at: datetime | None = None
+
+
+class CredentialRotate(BaseModel):
+    expires_at: datetime | None = None
+
+
+class CredentialResponse(BaseModel):
+    id: UUID
+    member_id: UUID
+    name: str
+    key_prefix: str
+    role: str
+    expires_at: datetime | None
+    revoked_at: datetime | None
+    last_used_at: datetime | None
+    created_at: datetime
+    secret: str | None = Field(default=None, description="Returned only once when issued")
+
+
+class EntitlementUpdate(BaseModel):
+    enabled: bool
+    expected_version: int = Field(ge=1)
+
+
+class EntitlementResponse(BaseModel):
+    capability: str
+    enabled: bool
+    version: int
+
+
+class TenantProvisionResponse(BaseModel):
+    tenant: TenantAdminResponse
+    owner: TenantMemberResponse
+    credential: CredentialResponse
+    created: bool
 
 
 class CategoryResponse(BaseModel):

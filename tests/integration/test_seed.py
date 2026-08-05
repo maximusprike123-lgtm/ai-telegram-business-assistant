@@ -18,6 +18,8 @@ from business_assistant.infrastructure.persistence.sqlalchemy.models import (
     ScheduleOverrideRow,
     ServiceResourceRow,
     ServiceRow,
+    TenantEntitlementRow,
+    TenantMemberRow,
     TenantPublicProfileRow,
 )
 from business_assistant.infrastructure.persistence.sqlalchemy.unit_of_work import (
@@ -68,6 +70,10 @@ async def test_northstar_seed_is_complete_and_idempotent(
             select(func.count()).select_from(RetentionPolicyRow)
         )
         retention_policy = await session.scalar(select(RetentionPolicyRow))
+        member_count = await session.scalar(select(func.count()).select_from(TenantMemberRow))
+        entitlement_count = await session.scalar(
+            select(func.count()).select_from(TenantEntitlementRow)
+        )
     assert tenant is not None
     assert category is not None
     assert profile is not None
@@ -97,6 +103,8 @@ async def test_northstar_seed_is_complete_and_idempotent(
     assert knowledge_chunk_count == 1
     assert retention_policy_count == 1
     assert retention_policy is not None and not retention_policy.automatic_execution_enabled
+    assert member_count == 1
+    assert entitlement_count == 6
     assert {service.price.mode.value for service in services} == {
         "exact",
         "starting_from",

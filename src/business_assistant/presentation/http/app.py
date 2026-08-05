@@ -13,6 +13,18 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from fastapi.security import APIKeyHeader
 
+from business_assistant.application.administration import (
+    ApiKeyAuthenticator,
+    Capability,
+    CredentialView,
+    EntitlementView,
+    MemberView,
+    ProvisioningResult,
+    ProvisionTenant,
+    TenantAccessPolicy,
+    TenantAdministration,
+    TenantView,
+)
 from business_assistant.application.background import (
     BackgroundApplication,
     NotificationSubscription,
@@ -26,7 +38,7 @@ from business_assistant.application.catalog import (
     ServiceDTO,
 )
 from business_assistant.application.common.errors import ApplicationError
-from business_assistant.application.common.security import Permission, Principal
+from business_assistant.application.common.security import Permission, Principal, Role
 from business_assistant.application.handoffs import HandoffApplication, HandoffView
 from business_assistant.application.knowledge import (
     KnowledgeAnswer,
@@ -73,18 +85,25 @@ from business_assistant.domain.shared import (
     CustomerId,
     DocumentId,
     HandoffId,
+    Locale,
     QualificationSchemaId,
     ServiceId,
+    TenantId,
 )
-from business_assistant.infrastructure.security import StaticApiKeyAuthenticator
+from business_assistant.domain.tenants import TenantStatus
 
 from .schemas import (
     AvailabilitySlotResponse,
     BusinessDayResponse,
     BusinessStatusResponse,
     CategoryResponse,
+    CredentialCreate,
+    CredentialResponse,
+    CredentialRotate,
     CustomerAnonymizationRequest,
     DataClassificationResponse,
+    EntitlementResponse,
+    EntitlementUpdate,
     ErrorResponse,
     FAQKnowledgeCreate,
     HandoffActionRequest,
@@ -104,7 +123,13 @@ from .schemas import (
     RetentionPolicyResponse,
     RetentionPolicyUpdate,
     ServiceResponse,
+    TenantAdminResponse,
+    TenantAdminUpdate,
+    TenantMemberResponse,
+    TenantMemberUpsert,
     TenantProfileResponse,
+    TenantProvisionRequest,
+    TenantProvisionResponse,
     WorkerHealthResponse,
 )
 
@@ -118,7 +143,7 @@ class Phase3ApiServices:
     hours: GetBusinessHours
     status: GetBusinessStatus
     next_opening: GetNextOpening
-    authenticator: StaticApiKeyAuthenticator
+    authenticator: ApiKeyAuthenticator
     bookings: BookingApplication | None = None
     qualification_admin: QualificationAdministration | None = None
     handoffs: HandoffApplication | None = None
@@ -126,6 +151,9 @@ class Phase3ApiServices:
     privacy: PrivacyApplication | None = None
     background: BackgroundApplication | None = None
     operations: "OperationalApiServices | None" = None
+    administration: TenantAdministration | None = None
+    tenant_access: TenantAccessPolicy | None = None
+    bootstrap_token: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -294,6 +322,60 @@ def _correlation_id(request: Request) -> str:
     return str(getattr(request.state, "correlation_id", "unknown"))
 
 
+def _tenant_admin_response(value: TenantView) -> TenantAdminResponse:
+    return TenantAdminResponse(
+        id=UUID(str(value.id)),
+        slug=value.slug,
+        name=value.name,
+        timezone=value.timezone,
+        default_locale=value.default_locale.value,
+        supported_locales=tuple(sorted(item.value for item in value.supported_locales)),
+        status=value.status.value,
+        settings_version=value.settings_version,
+    )
+
+
+def _member_response(value: MemberView) -> TenantMemberResponse:
+    return TenantMemberResponse(
+        id=value.id,
+        subject=value.subject,
+        role=value.role.value,
+        active=value.active,
+        created_at=value.created_at,
+        updated_at=value.updated_at,
+    )
+
+
+def _credential_response(value: CredentialView, secret: str | None = None) -> CredentialResponse:
+    return CredentialResponse(
+        id=value.id,
+        member_id=value.member_id,
+        name=value.name,
+        key_prefix=value.key_prefix,
+        role=value.role.value,
+        expires_at=value.expires_at,
+        revoked_at=value.revoked_at,
+        last_used_at=value.last_used_at,
+        created_at=value.created_at,
+        secret=secret,
+    )
+
+
+def _entitlement_response(value: EntitlementView) -> EntitlementResponse:
+    return EntitlementResponse(
+        capability=value.capability.value, enabled=value.enabled, version=value.version
+    )
+
+
+def _provision_response(value: ProvisioningResult) -> TenantProvisionResponse:
+    return TenantProvisionResponse(
+        tenant=_tenant_admin_response(value.tenant),
+        owner=_member_response(value.owner),
+        credential=_credential_response(value.credential.credential, value.credential.secret),
+        created=value.created,
+    )
+
+
 def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
     app = FastAPI(
         title="AI Telegram Business Assistant Internal API",
@@ -308,6 +390,7 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
             {"name": "Handoff", "description": "Authorized human handoff operations"},
             {"name": "Knowledge", "description": "Tenant-scoped approved knowledge"},
             {"name": "Privacy", "description": "Tenant-scoped privacy and retention controls"},
+            {"name": "Administration", "description": "Tenant-scoped SaaS control plane"},
         ],
     )
     key_header = APIKeyHeader(
@@ -370,11 +453,25 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
         api_key: Annotated[str | None, Security(key_header)],
         asserted_tenant: Annotated[str | None, Header(alias="X-Tenant-ID")] = None,
     ) -> Principal:
-        principal = services.authenticator.authenticate(api_key)
+        principal = await services.authenticator.authenticate(api_key)
         if asserted_tenant is not None and asserted_tenant != str(principal.tenant_id):
             from business_assistant.application.common.errors import AuthorizationError
 
             raise AuthorizationError()
+        access = services.tenant_access
+        if access is not None and not request.url.path.startswith("/api/v1/admin/"):
+            capability = (
+                Capability.BOOKING
+                if request.url.path.startswith("/api/v1/availability")
+                else Capability.QUALIFICATION
+                if request.url.path.startswith("/api/v1/qualification")
+                else Capability.KNOWLEDGE_ANSWERS
+                if request.url.path.startswith("/api/v1/knowledge")
+                else Capability.BACKGROUND_NOTIFICATIONS
+                if request.url.path.startswith("/api/v1/notifications")
+                else None
+            )
+            await access.require_active(principal.tenant_id, capability)
         return principal
 
     PrincipalDependency = Annotated[Principal, Depends(authenticated_principal)]
@@ -430,7 +527,7 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
     async def application_error_handler(request: Request, exc: ApplicationError) -> JSONResponse:
         status = (
             403
-            if exc.code == "auth.forbidden"
+            if exc.code in {"auth.forbidden", "tenant.unavailable", "tenant.capability_disabled"}
             else 401
             if exc.code.startswith("auth.")
             else 409
@@ -440,6 +537,12 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
                 "booking.expired",
                 "privacy.policy_conflict",
                 "privacy.idempotency_conflict",
+                "administration.idempotency_conflict",
+                "administration.tenant_conflict",
+                "administration.version_conflict",
+                "administration.invalid_transition",
+                "administration.last_owner",
+                "administration.credential_revoked",
             }
             else 404
             if exc.code.endswith("not_found")
@@ -960,6 +1063,210 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
         ) -> WorkerHealthResponse:
             return WorkerHealthResponse.model_validate(
                 asdict(await background_application.worker_health(principal))
+            )
+
+    administration = services.administration
+    if administration is not None:
+
+        @app.post(
+            "/api/v1/admin/provisioning/tenants",
+            response_model=TenantProvisionResponse,
+            status_code=201,
+            tags=["Administration"],
+            responses=error_responses,
+        )
+        async def provision_tenant(
+            body: TenantProvisionRequest,
+            bootstrap_token: Annotated[str | None, Header(alias="X-Admin-Bootstrap-Token")] = None,
+        ) -> TenantProvisionResponse:
+            expected = services.bootstrap_token
+            if (
+                expected is None
+                or bootstrap_token is None
+                or not compare_digest(bootstrap_token, expected)
+            ):
+                from business_assistant.application.common.errors import AuthenticationError
+
+                raise AuthenticationError()
+            result = await administration.provision(
+                ProvisionTenant(
+                    tenant_id=TenantId(body.tenant_id),
+                    slug=body.slug,
+                    name=body.name,
+                    timezone=body.timezone,
+                    default_locale=Locale(body.default_locale),
+                    owner_subject=body.owner_subject,
+                    credential_name=body.credential_name,
+                    idempotency_key=body.idempotency_key,
+                    entitlements=frozenset(Capability(item) for item in body.enabled_capabilities),
+                )
+            )
+            return _provision_response(result)
+
+        @app.get(
+            "/api/v1/admin/tenant",
+            response_model=TenantAdminResponse,
+            tags=["Administration"],
+            responses=error_responses,
+        )
+        async def get_admin_tenant(principal: PrincipalDependency) -> TenantAdminResponse:
+            return _tenant_admin_response(await administration.get_tenant(principal))
+
+        @app.put(
+            "/api/v1/admin/tenant",
+            response_model=TenantAdminResponse,
+            tags=["Administration"],
+            responses=error_responses,
+        )
+        async def update_admin_tenant(
+            body: TenantAdminUpdate, principal: PrincipalDependency
+        ) -> TenantAdminResponse:
+            return _tenant_admin_response(
+                await administration.update_tenant(
+                    principal,
+                    name=body.name,
+                    timezone=body.timezone,
+                    default_locale=Locale(body.default_locale),
+                    expected_version=body.expected_version,
+                )
+            )
+
+        @app.post(
+            "/api/v1/admin/tenant/lifecycle/{target}",
+            response_model=TenantAdminResponse,
+            tags=["Administration"],
+            responses=error_responses,
+        )
+        async def transition_admin_tenant(
+            target: TenantStatus, principal: PrincipalDependency
+        ) -> TenantAdminResponse:
+            return _tenant_admin_response(await administration.transition(principal, target))
+
+        @app.get(
+            "/api/v1/admin/members",
+            response_model=tuple[TenantMemberResponse, ...],
+            tags=["Administration"],
+            responses=error_responses,
+        )
+        async def list_admin_members(
+            principal: PrincipalDependency,
+        ) -> tuple[TenantMemberResponse, ...]:
+            return tuple(_member_response(item) for item in await administration.members(principal))
+
+        @app.put(
+            "/api/v1/admin/members",
+            response_model=TenantMemberResponse,
+            tags=["Administration"],
+            responses=error_responses,
+        )
+        async def upsert_admin_member(
+            body: TenantMemberUpsert, principal: PrincipalDependency
+        ) -> TenantMemberResponse:
+            return _member_response(
+                await administration.upsert_member(
+                    principal, subject=body.subject, role=Role(body.role)
+                )
+            )
+
+        @app.delete(
+            "/api/v1/admin/members/{member_id}",
+            response_model=TenantMemberResponse,
+            tags=["Administration"],
+            responses=error_responses,
+        )
+        async def revoke_admin_member(
+            member_id: UUID, principal: PrincipalDependency
+        ) -> TenantMemberResponse:
+            return _member_response(await administration.revoke_member(principal, member_id))
+
+        @app.get(
+            "/api/v1/admin/credentials",
+            response_model=tuple[CredentialResponse, ...],
+            tags=["Administration"],
+            responses=error_responses,
+        )
+        async def list_admin_credentials(
+            principal: PrincipalDependency,
+        ) -> tuple[CredentialResponse, ...]:
+            return tuple(
+                _credential_response(item) for item in await administration.credentials(principal)
+            )
+
+        @app.post(
+            "/api/v1/admin/credentials",
+            response_model=CredentialResponse,
+            status_code=201,
+            tags=["Administration"],
+            responses=error_responses,
+        )
+        async def create_admin_credential(
+            body: CredentialCreate, principal: PrincipalDependency
+        ) -> CredentialResponse:
+            issued = await administration.create_credential(
+                principal,
+                member_id=body.member_id,
+                name=body.name,
+                expires_at=body.expires_at,
+            )
+            return _credential_response(issued.credential, issued.secret)
+
+        @app.post(
+            "/api/v1/admin/credentials/{credential_id}/rotate",
+            response_model=CredentialResponse,
+            tags=["Administration"],
+            responses=error_responses,
+        )
+        async def rotate_admin_credential(
+            credential_id: UUID, body: CredentialRotate, principal: PrincipalDependency
+        ) -> CredentialResponse:
+            issued = await administration.rotate_credential(
+                principal, credential_id, expires_at=body.expires_at
+            )
+            return _credential_response(issued.credential, issued.secret)
+
+        @app.delete(
+            "/api/v1/admin/credentials/{credential_id}",
+            response_model=CredentialResponse,
+            tags=["Administration"],
+            responses=error_responses,
+        )
+        async def revoke_admin_credential(
+            credential_id: UUID, principal: PrincipalDependency
+        ) -> CredentialResponse:
+            issued = await administration.revoke_credential(principal, credential_id)
+            return _credential_response(issued.credential)
+
+        @app.get(
+            "/api/v1/admin/entitlements",
+            response_model=tuple[EntitlementResponse, ...],
+            tags=["Administration"],
+            responses=error_responses,
+        )
+        async def list_admin_entitlements(
+            principal: PrincipalDependency,
+        ) -> tuple[EntitlementResponse, ...]:
+            return tuple(
+                _entitlement_response(item) for item in await administration.entitlements(principal)
+            )
+
+        @app.put(
+            "/api/v1/admin/entitlements/{capability}",
+            response_model=EntitlementResponse,
+            tags=["Administration"],
+            responses=error_responses,
+        )
+        async def update_admin_entitlement(
+            capability: Capability,
+            body: EntitlementUpdate,
+            principal: PrincipalDependency,
+        ) -> EntitlementResponse:
+            return _entitlement_response(
+                await administration.set_entitlement(
+                    principal,
+                    capability,
+                    enabled=body.enabled,
+                    expected_version=body.expected_version,
+                )
             )
 
     return app

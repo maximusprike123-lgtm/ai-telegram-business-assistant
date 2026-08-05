@@ -40,7 +40,7 @@ def test_tenant_validates_locale_timezone_and_slug(tenant_id: TenantId) -> None:
 def test_tenant_status_controls_new_work(tenant_id: TenantId) -> None:
     tenant = make_tenant(tenant_id)
     tenant.deactivate()
-    assert tenant.status is TenantStatus.INACTIVE
+    assert tenant.status is TenantStatus.SUSPENDED
     assert not tenant.can_process_new_work
     tenant.activate()
     assert tenant.can_process_new_work

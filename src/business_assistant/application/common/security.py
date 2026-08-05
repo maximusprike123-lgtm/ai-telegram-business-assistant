@@ -34,6 +34,12 @@ class Permission(StrEnum):
     NOTIFICATION_READ = "notification:read"
     NOTIFICATION_WRITE = "notification:write"
     WORKER_MONITOR_READ = "worker_monitor:read"
+    TENANT_ADMIN_READ = "tenant_admin:read"
+    TENANT_PROFILE_WRITE = "tenant_profile:write"
+    TENANT_LIFECYCLE_WRITE = "tenant_lifecycle:write"
+    TENANT_MEMBER_WRITE = "tenant_member:write"
+    TENANT_CREDENTIAL_WRITE = "tenant_credential:write"
+    TENANT_ENTITLEMENT_WRITE = "tenant_entitlement:write"
 
 
 _READ_PERMISSIONS = frozenset(
@@ -62,14 +68,31 @@ _PRIVACY_OWNER_PERMISSIONS = frozenset(
 _OPERATIONS_PERMISSIONS = frozenset(
     {Permission.NOTIFICATION_READ, Permission.NOTIFICATION_WRITE, Permission.WORKER_MONITOR_READ}
 )
+_TENANT_MANAGER_PERMISSIONS = frozenset(
+    {Permission.TENANT_ADMIN_READ, Permission.TENANT_PROFILE_WRITE}
+)
+_TENANT_OWNER_PERMISSIONS = frozenset(
+    {
+        Permission.TENANT_LIFECYCLE_WRITE,
+        Permission.TENANT_MEMBER_WRITE,
+        Permission.TENANT_CREDENTIAL_WRITE,
+        Permission.TENANT_ENTITLEMENT_WRITE,
+    }
+)
 _ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
     Role.OWNER: _READ_PERMISSIONS
     | _WRITE_PERMISSIONS
     | _PRIVACY_READ_PERMISSIONS
     | _PRIVACY_OWNER_PERMISSIONS
-    | _OPERATIONS_PERMISSIONS,
+    | _OPERATIONS_PERMISSIONS
+    | _TENANT_MANAGER_PERMISSIONS
+    | _TENANT_OWNER_PERMISSIONS,
     Role.MANAGER: (
-        _READ_PERMISSIONS | _WRITE_PERMISSIONS | _PRIVACY_READ_PERMISSIONS | _OPERATIONS_PERMISSIONS
+        _READ_PERMISSIONS
+        | _WRITE_PERMISSIONS
+        | _PRIVACY_READ_PERMISSIONS
+        | _OPERATIONS_PERMISSIONS
+        | _TENANT_MANAGER_PERMISSIONS
     ),
     Role.AGENT: _READ_PERMISSIONS | {Permission.HANDOFF_WRITE},
     Role.VIEWER: _READ_PERMISSIONS,

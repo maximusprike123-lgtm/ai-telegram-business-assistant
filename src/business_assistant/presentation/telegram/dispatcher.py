@@ -8,6 +8,7 @@ from aiogram.enums import ChatType
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
+from business_assistant.application.administration import Capability, TenantAccessPolicy
 from business_assistant.application.common.errors import (
     ApplicationError,
     BookingConflictError,
@@ -35,8 +36,10 @@ from .delivery import AiogramDeliveryGateway
 from .middleware import (
     CorrelationMiddleware,
     TelegramIdentityMiddleware,
+    TenantAccessMiddleware,
     UpdateDeduplicationMiddleware,
 )
+from .models import RenderedMessage
 from .navigation import TelegramNavigation
 from .renderer import TelegramRenderer
 
@@ -54,6 +57,7 @@ class TelegramRuntime:
     processing_stale_seconds: int
     logger: logging.Logger
     metrics: OperationalMetricsPort | None = None
+    tenant_access: TenantAccessPolicy | None = None
 
 
 def build_dispatcher(runtime: TelegramRuntime) -> Dispatcher:
@@ -62,6 +66,24 @@ def build_dispatcher(runtime: TelegramRuntime) -> Dispatcher:
     private = F.chat.type == ChatType.PRIVATE
 
     async def send_page(message: Message, identity: TelegramIdentity, page_name: str) -> None:
+        if runtime.tenant_access is not None:
+            capability = (
+                Capability.BOOKING
+                if page_name in {"book", "my_booking"}
+                else Capability.QUALIFICATION
+                if page_name == "qualify"
+                else None
+            )
+            if capability is not None:
+                try:
+                    await runtime.tenant_access.require_active(identity.tenant_id, capability)
+                except ApplicationError:
+                    await runtime.delivery.send(
+                        message.chat.id,
+                        identity.tenant_id,
+                        RenderedMessage("This feature is currently unavailable."),
+                    )
+                    return
         paused = await runtime.navigation.paused(identity)
         if paused is not None and page_name not in {"privacy", "help", "human"}:
             page = runtime.renderer.handoff(paused)
@@ -160,6 +182,36 @@ def build_dispatcher(runtime: TelegramRuntime) -> Dispatcher:
                 return
             try:
                 token = runtime.callbacks.decode(telegram_identity.tenant_id, callback.data)
+                if runtime.tenant_access is not None:
+                    booking_actions = {
+                        CallbackAction.BOOK,
+                        CallbackAction.BOOK_SERVICE,
+                        CallbackAction.BOOK_DATE,
+                        CallbackAction.BOOK_SLOT,
+                        CallbackAction.BOOK_CONFIRM,
+                        CallbackAction.MY_BOOKING,
+                        CallbackAction.APPOINTMENT_CANCEL,
+                        CallbackAction.APPOINTMENT_CANCEL_CONFIRM,
+                        CallbackAction.RESCHEDULE,
+                    }
+                    qualification_actions = {
+                        CallbackAction.QUALIFY,
+                        CallbackAction.QUALIFY_CONSENT_ACCEPT,
+                        CallbackAction.QUALIFY_CONSENT_DECLINE,
+                        CallbackAction.QUALIFY_EDIT,
+                        CallbackAction.QUALIFY_SUBMIT,
+                    }
+                    capability = (
+                        Capability.BOOKING
+                        if token.action in booking_actions
+                        else Capability.QUALIFICATION
+                        if token.action in qualification_actions
+                        else None
+                    )
+                    if capability is not None:
+                        await runtime.tenant_access.require_active(
+                            telegram_identity.tenant_id, capability
+                        )
                 paused = await runtime.navigation.paused(telegram_identity)
                 if paused is not None and token.action not in {
                     CallbackAction.PRIVACY,
@@ -316,6 +368,10 @@ def build_dispatcher(runtime: TelegramRuntime) -> Dispatcher:
             await runtime.delivery.send(message.chat.id, telegram_identity.tenant_id, page)
 
     dispatcher.update.outer_middleware(CorrelationMiddleware())
+    if runtime.tenant_access is not None:
+        dispatcher.update.outer_middleware(
+            TenantAccessMiddleware(runtime.tenant_access, runtime.binding)
+        )
     dispatcher.update.outer_middleware(
         UpdateDeduplicationMiddleware(
             runtime.update_store,

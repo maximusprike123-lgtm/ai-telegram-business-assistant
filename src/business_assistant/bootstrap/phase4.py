@@ -13,6 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from business_assistant.application.administration import TenantAdministration
 from business_assistant.application.bookings import BookingApplication
 from business_assistant.application.catalog import GetService, ListServiceCategories, ListServices
 from business_assistant.application.common.ports import Phase3UnitOfWork, Phase3UnitOfWorkFactory
@@ -46,13 +47,19 @@ from business_assistant.infrastructure.persistence import (
     SQLAlchemyQualificationStore,
     SQLAlchemyTelegramIdentityStore,
     SQLAlchemyTelegramUpdateStore,
+    SQLAlchemyTenantAccessPolicy,
+    SQLAlchemyTenantAdministrationStore,
     create_engine,
     create_session_factory,
 )
 from business_assistant.infrastructure.persistence.sqlalchemy.unit_of_work import (
     SQLAlchemyUnitOfWork,
 )
-from business_assistant.infrastructure.security import StaticApiKeyAuthenticator
+from business_assistant.infrastructure.security import (
+    DatabaseApiKeyAuthenticator,
+    PBKDF2CredentialSecrets,
+    StaticApiKeyAuthenticator,
+)
 from business_assistant.infrastructure.system import UTCClock
 from business_assistant.presentation.http import (
     OperationalApiServices,
@@ -160,6 +167,7 @@ def build_phase4_components(settings: RuntimeSettings) -> Phase4Components:
             HandoffApplication(SQLAlchemyHandoffStore(session_factory), clock),
             ai_router,
             knowledge,
+            SQLAlchemyTenantAccessPolicy(session_factory),
         )
     )
     identity_store = SQLAlchemyTelegramIdentityStore(session_factory)
@@ -177,6 +185,7 @@ def build_phase4_components(settings: RuntimeSettings) -> Phase4Components:
         settings.telegram.processing_stale_seconds,
         logger,
         metrics,
+        SQLAlchemyTenantAccessPolicy(session_factory),
     )
     return Phase4Components(
         engine,
@@ -259,6 +268,8 @@ def _internal_api_app(
     principal = Principal(
         "static-internal-operator", security.internal_api_tenant_id, security.internal_api_role
     )
+    credential_secrets = PBKDF2CredentialSecrets()
+    administration_store = SQLAlchemyTenantAdministrationStore(components.session_factory)
     services = Phase3ApiServices(
         GetTenantPublicProfile(uow_factory, clock),
         ListServiceCategories(uow_factory),
@@ -267,7 +278,11 @@ def _internal_api_app(
         GetBusinessHours(uow_factory),
         GetBusinessStatus(uow_factory, clock),
         GetNextOpening(uow_factory, clock),
-        StaticApiKeyAuthenticator(security.internal_api_key, principal),
+        DatabaseApiKeyAuthenticator(
+            components.session_factory,
+            credential_secrets,
+            StaticApiKeyAuthenticator(security.internal_api_key, principal),
+        ),
         BookingApplication(SQLAlchemyBookingStore(components.session_factory), clock),
         QualificationAdministration(SQLAlchemyQualificationStore(components.session_factory)),
         HandoffApplication(SQLAlchemyHandoffStore(components.session_factory), clock),
@@ -280,6 +295,9 @@ def _internal_api_app(
             settings.observability.metrics_auth_token,
             settings.observability.slow_operation_seconds,
         ),
+        administration=TenantAdministration(administration_store, credential_secrets),
+        tenant_access=SQLAlchemyTenantAccessPolicy(components.session_factory),
+        bootstrap_token=security.admin_bootstrap_token,
     )
     return create_phase3_app(services)
 

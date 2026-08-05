@@ -3,10 +3,11 @@
 from dataclasses import dataclass
 from uuid import NAMESPACE_URL, uuid5
 
+from business_assistant.application.administration import Capability, TenantAccessPolicy
 from business_assistant.application.ai import AdvisoryRoute, AITextRouter
 from business_assistant.application.bookings import BookingApplication
 from business_assistant.application.catalog import GetService, ListServiceCategories, ListServices
-from business_assistant.application.common.errors import CategoryNotFoundError
+from business_assistant.application.common.errors import ApplicationError, CategoryNotFoundError
 from business_assistant.application.common.security import Principal, Role
 from business_assistant.application.handoffs import HandoffApplication, HandoffView
 from business_assistant.application.knowledge import KnowledgeApplication
@@ -49,6 +50,7 @@ class TelegramNavigationServices:
     handoffs: HandoffApplication | None = None
     ai_router: AITextRouter | None = None
     knowledge: KnowledgeApplication | None = None
+    tenant_access: TenantAccessPolicy | None = None
 
 
 class TelegramNavigation:
@@ -176,6 +178,10 @@ class TelegramNavigation:
         draft = await self._booking_app.active(identity)
         if draft is None or draft.hold_id is None:
             return None
+        if self._services.tenant_access is not None:
+            await self._services.tenant_access.require_active(
+                identity.tenant_id, Capability.BOOKING
+            )
         if draft.customer_name is None:
             await self._booking_app.contact(identity, draft.id, name=value)
             return self._services.renderer.ask_phone()
@@ -241,6 +247,10 @@ class TelegramNavigation:
         active = await self._qualification_app.active(identity)
         if active is None or active[0].status is not QualificationSessionStatus.IN_PROGRESS:
             return None
+        if self._services.tenant_access is not None:
+            await self._services.tenant_access.require_active(
+                identity.tenant_id, Capability.QUALIFICATION
+            )
         session, next_field = await self._qualification_app.answer(identity, value, update_key)
         if next_field is not None:
             return self._services.renderer.qualification_question(next_field)
@@ -302,6 +312,13 @@ class TelegramNavigation:
     ) -> RenderedMessage:
         if self._services.ai_router is None:
             return await self.unsupported(identity, update_key=update_key)
+        if self._services.tenant_access is not None:
+            try:
+                await self._services.tenant_access.require_active(
+                    identity.tenant_id, Capability.AI_ROUTING
+                )
+            except ApplicationError:
+                return await self.unsupported(identity, update_key=update_key)
         route = await self._services.ai_router.route(
             identity,
             text,
@@ -314,6 +331,13 @@ class TelegramNavigation:
         if route is AdvisoryRoute.HOURS:
             return await self.hours(identity)
         if route is AdvisoryRoute.KNOWLEDGE and self._services.knowledge is not None:
+            if self._services.tenant_access is not None:
+                try:
+                    await self._services.tenant_access.require_active(
+                        identity.tenant_id, Capability.KNOWLEDGE_ANSWERS
+                    )
+                except ApplicationError:
+                    return await self.unsupported(identity, update_key=update_key)
             answer = await self._services.knowledge.answer_for_tenant(
                 identity.tenant_id,
                 query=text,

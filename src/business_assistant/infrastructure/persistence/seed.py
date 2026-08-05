@@ -48,6 +48,8 @@ from .sqlalchemy.models import (
     ResourceRow,
     RetentionPolicyRow,
     ServiceResourceRow,
+    TenantEntitlementRow,
+    TenantMemberRow,
 )
 from .sqlalchemy.unit_of_work import SQLAlchemyUnitOfWork
 
@@ -63,6 +65,7 @@ NORTHSTAR_QUALIFICATION_SCHEMA_ID = QualificationSchemaId(
 )
 NORTHSTAR_KNOWLEDGE_DOCUMENT_ID = UUID("de5a471b-985c-5884-91f4-2a91ea789b4f")
 NORTHSTAR_KNOWLEDGE_CHUNK_ID = UUID("2242d718-3cf2-5ed5-8581-6dadf62955a7")
+NORTHSTAR_OWNER_MEMBER_ID = UUID("06d54aa7-b1e2-5208-aa69-fc104231212e")
 _NORTHSTAR_FAQ_TEXT = (
     "Question: Do you guarantee same-day repairs?\n"
     "Answer: No. Completion time depends on inspection findings and parts availability. "
@@ -317,6 +320,35 @@ async def seed_northstar(database_url: str, app_env: str) -> None:
                 await uow.services.upsert(NORTHSTAR_TENANT_ID, service)
             await uow.commit()
         async with factory() as session, session.begin():
+            await session.execute(
+                insert(TenantMemberRow)
+                .values(
+                    id=NORTHSTAR_OWNER_MEMBER_ID,
+                    tenant_id=NORTHSTAR_TENANT_ID.value,
+                    subject="northstar-demo-owner",
+                    role="owner",
+                    active=True,
+                )
+                .on_conflict_do_nothing(index_elements=["tenant_id", "subject"])
+            )
+            for capability in (
+                "telegram",
+                "booking",
+                "qualification",
+                "ai_routing",
+                "knowledge_answers",
+                "background_notifications",
+            ):
+                await session.execute(
+                    insert(TenantEntitlementRow)
+                    .values(
+                        tenant_id=NORTHSTAR_TENANT_ID.value,
+                        capability=capability,
+                        enabled=True,
+                        version=1,
+                    )
+                    .on_conflict_do_nothing(index_elements=["tenant_id", "capability"])
+                )
             await session.execute(
                 insert(RetentionPolicyRow)
                 .values(

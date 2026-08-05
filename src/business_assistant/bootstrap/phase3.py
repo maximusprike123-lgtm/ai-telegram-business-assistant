@@ -5,6 +5,7 @@ from typing import cast
 import httpx
 from fastapi import FastAPI
 
+from business_assistant.application.administration import TenantAdministration
 from business_assistant.application.background import BackgroundApplication, RetryPolicy
 from business_assistant.application.catalog import GetService, ListServiceCategories, ListServices
 from business_assistant.application.common.ports import Phase3UnitOfWork, Phase3UnitOfWorkFactory
@@ -25,13 +26,19 @@ from business_assistant.infrastructure.observability import (
 )
 from business_assistant.infrastructure.persistence import (
     SQLAlchemyBackgroundStore,
+    SQLAlchemyTenantAccessPolicy,
+    SQLAlchemyTenantAdministrationStore,
     create_engine,
     create_session_factory,
 )
 from business_assistant.infrastructure.persistence.sqlalchemy.unit_of_work import (
     SQLAlchemyUnitOfWork,
 )
-from business_assistant.infrastructure.security import StaticApiKeyAuthenticator
+from business_assistant.infrastructure.security import (
+    DatabaseApiKeyAuthenticator,
+    PBKDF2CredentialSecrets,
+    StaticApiKeyAuthenticator,
+)
 from business_assistant.infrastructure.system import UTCClock
 from business_assistant.presentation.http import (
     OperationalApiServices,
@@ -75,6 +82,9 @@ def build_phase3_app(settings: RuntimeSettings) -> FastAPI:
     principal = Principal(
         "static-internal-operator", security.internal_api_tenant_id, security.internal_api_role
     )
+    credential_secrets = PBKDF2CredentialSecrets()
+    administration_store = SQLAlchemyTenantAdministrationStore(session_factory)
+    tenant_access = SQLAlchemyTenantAccessPolicy(session_factory)
     ai_client = (
         httpx.AsyncClient(timeout=httpx.Timeout(settings.ai.timeout_seconds))
         if settings.features.rag_enabled
@@ -88,7 +98,11 @@ def build_phase3_app(settings: RuntimeSettings) -> FastAPI:
         hours=GetBusinessHours(typed_factory),
         status=GetBusinessStatus(typed_factory, clock),
         next_opening=GetNextOpening(typed_factory, clock),
-        authenticator=StaticApiKeyAuthenticator(security.internal_api_key, principal),
+        authenticator=DatabaseApiKeyAuthenticator(
+            session_factory,
+            credential_secrets,
+            StaticApiKeyAuthenticator(security.internal_api_key, principal),
+        ),
         knowledge=build_knowledge_application(settings, session_factory, ai_client, metrics),
         privacy=build_privacy_application(session_factory),
         background=BackgroundApplication(
@@ -110,6 +124,9 @@ def build_phase3_app(settings: RuntimeSettings) -> FastAPI:
             settings.observability.metrics_auth_token,
             settings.observability.slow_operation_seconds,
         ),
+        administration=TenantAdministration(administration_store, credential_secrets),
+        tenant_access=tenant_access,
+        bootstrap_token=security.admin_bootstrap_token,
     )
     app = create_phase3_app(services)
 

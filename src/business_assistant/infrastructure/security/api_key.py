@@ -11,7 +11,7 @@ class StaticApiKeyAuthenticator:
         self._expected_key = expected_key
         self._principal = principal
 
-    def authenticate(self, provided_key: str | None) -> Principal:
+    async def authenticate(self, provided_key: str | None) -> Principal:
         candidate = provided_key or ""
         if not provided_key or not hmac.compare_digest(
             candidate.encode("utf-8"), self._expected_key.encode("utf-8")

@@ -177,7 +177,7 @@ async def test_identity_resolution_is_minimal_english_and_concurrency_safe(
         await session.execute(
             update(TenantRow)
             .where(TenantRow.id == NORTHSTAR_TENANT_ID.value)
-            .values(status="inactive")
+            .values(status="suspended")
         )
     with pytest.raises(TelegramIdentityUnavailableError):
         await store.resolve(

@@ -1,5 +1,6 @@
 """PostgreSQL persistence adapters."""
 
+from .administration import SQLAlchemyTenantAccessPolicy, SQLAlchemyTenantAdministrationStore
 from .ai import SQLAlchemyAITelemetryStore
 from .background import SQLAlchemyBackgroundStore
 from .booking import SQLAlchemyBookingStore
@@ -20,6 +21,8 @@ __all__ = [
     "SQLAlchemyQualificationStore",
     "SQLAlchemyTelegramIdentityStore",
     "SQLAlchemyTelegramUpdateStore",
+    "SQLAlchemyTenantAccessPolicy",
+    "SQLAlchemyTenantAdministrationStore",
     "SQLAlchemyUnitOfWork",
     "create_engine",
     "create_session_factory",

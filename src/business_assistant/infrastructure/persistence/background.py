@@ -21,6 +21,8 @@ from .sqlalchemy.models import (
     NotificationDeliveryRow,
     NotificationSubscriptionRow,
     OutboxEventRow,
+    TenantEntitlementRow,
+    TenantRow,
 )
 
 
@@ -76,13 +78,21 @@ class SQLAlchemyBackgroundStore:
                 (
                     await session.scalars(
                         select(OutboxEventRow)
+                        .join(TenantRow, TenantRow.id == OutboxEventRow.tenant_id)
+                        .join(
+                            TenantEntitlementRow,
+                            (TenantEntitlementRow.tenant_id == OutboxEventRow.tenant_id)
+                            & (TenantEntitlementRow.capability == "background_notifications"),
+                        )
                         .where(
+                            TenantRow.status == "active",
+                            TenantEntitlementRow.enabled.is_(True),
                             or_(
                                 (OutboxEventRow.status == "pending")
                                 & (OutboxEventRow.available_at <= now),
                                 (OutboxEventRow.status == "processing")
                                 & (OutboxEventRow.locked_at <= stale_before),
-                            )
+                            ),
                         )
                         .order_by(OutboxEventRow.available_at, OutboxEventRow.id)
                         .with_for_update(skip_locked=True)
@@ -146,13 +156,21 @@ class SQLAlchemyBackgroundStore:
                 (
                     await session.scalars(
                         select(NotificationDeliveryRow)
+                        .join(TenantRow, TenantRow.id == NotificationDeliveryRow.tenant_id)
+                        .join(
+                            TenantEntitlementRow,
+                            (TenantEntitlementRow.tenant_id == NotificationDeliveryRow.tenant_id)
+                            & (TenantEntitlementRow.capability == "background_notifications"),
+                        )
                         .where(
+                            TenantRow.status == "active",
+                            TenantEntitlementRow.enabled.is_(True),
                             or_(
                                 (NotificationDeliveryRow.status == "pending")
                                 & (NotificationDeliveryRow.available_at <= now),
                                 (NotificationDeliveryRow.status == "processing")
                                 & (NotificationDeliveryRow.locked_at <= stale_before),
-                            )
+                            ),
                         )
                         .order_by(
                             NotificationDeliveryRow.available_at,

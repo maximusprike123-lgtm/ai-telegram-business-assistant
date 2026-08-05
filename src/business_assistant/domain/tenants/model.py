@@ -2,12 +2,13 @@ from dataclasses import dataclass
 from enum import StrEnum
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from ..shared import Locale, TenantId, ValidationError
+from ..shared import InvalidStateTransition, Locale, TenantId, ValidationError
 
 
 class TenantStatus(StrEnum):
     ACTIVE = "active"
-    INACTIVE = "inactive"
+    SUSPENDED = "suspended"
+    ARCHIVED = "archived"
 
 
 @dataclass(slots=True)
@@ -43,8 +44,20 @@ class Tenant:
     def can_process_new_work(self) -> bool:
         return self.status is TenantStatus.ACTIVE
 
+    def transition_to(self, target: TenantStatus) -> None:
+        allowed = {
+            TenantStatus.ACTIVE: {TenantStatus.SUSPENDED, TenantStatus.ARCHIVED},
+            TenantStatus.SUSPENDED: {TenantStatus.ACTIVE, TenantStatus.ARCHIVED},
+            TenantStatus.ARCHIVED: set(),
+        }
+        if target is self.status:
+            return
+        if target not in allowed[self.status]:
+            raise InvalidStateTransition("Tenant", self.status.value, target.value)
+        self.status = target
+
     def deactivate(self) -> None:
-        self.status = TenantStatus.INACTIVE
+        self.transition_to(TenantStatus.SUSPENDED)
 
     def activate(self) -> None:
-        self.status = TenantStatus.ACTIVE
+        self.transition_to(TenantStatus.ACTIVE)

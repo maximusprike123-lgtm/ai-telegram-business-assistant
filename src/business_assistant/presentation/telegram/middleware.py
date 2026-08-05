@@ -11,6 +11,7 @@ from aiogram.enums import ChatType
 from aiogram.types import TelegramObject, Update
 from aiogram.types.update import UpdateTypeLookupError
 
+from business_assistant.application.administration import Capability, TenantAccessPolicy
 from business_assistant.application.common.errors import ApplicationError
 from business_assistant.application.common.ports import Clock
 from business_assistant.application.observability import (
@@ -40,6 +41,35 @@ class CorrelationMiddleware(BaseMiddleware):
         data["correlation_id"] = correlation_id
         with correlation_scope(correlation_id):
             return await handler(event, data)
+
+
+class TenantAccessMiddleware(BaseMiddleware):
+    def __init__(self, policy: TenantAccessPolicy, binding: TelegramBotBinding) -> None:
+        self._policy = policy
+        self._binding = binding
+
+    async def __call__(
+        self, handler: NextHandler, event: TelegramObject, data: dict[str, Any]
+    ) -> Any:
+        if not isinstance(event, Update):
+            return await handler(event, data)
+        try:
+            await self._policy.require_active(self._binding.tenant_id, Capability.TELEGRAM)
+        except ApplicationError:
+            bot = data.get("bot")
+            message = event.message
+            callback = event.callback_query
+            chat_id = (
+                message.chat.id
+                if message is not None
+                else callback.message.chat.id
+                if callback is not None and callback.message is not None
+                else None
+            )
+            if isinstance(bot, Bot) and chat_id is not None:
+                await bot.send_message(chat_id, "This assistant is temporarily unavailable.")
+            return "tenant_unavailable"
+        return await handler(event, data)
 
 
 class UpdateDeduplicationMiddleware(BaseMiddleware):

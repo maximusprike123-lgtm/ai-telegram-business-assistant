@@ -58,6 +58,7 @@ from .sqlalchemy.models import (
     ServiceResourceRow,
     ServiceRow,
     SlotHoldRow,
+    TenantEntitlementRow,
     TenantRow,
 )
 
@@ -1073,7 +1074,18 @@ class SQLAlchemyBookingStore:
                 (
                     await session.scalars(
                         select(SlotHoldRow)
-                        .where(SlotHoldRow.status == "active", SlotHoldRow.expires_at <= now)
+                        .join(TenantRow, TenantRow.id == SlotHoldRow.tenant_id)
+                        .join(
+                            TenantEntitlementRow,
+                            (TenantEntitlementRow.tenant_id == SlotHoldRow.tenant_id)
+                            & (TenantEntitlementRow.capability == "booking"),
+                        )
+                        .where(
+                            SlotHoldRow.status == "active",
+                            SlotHoldRow.expires_at <= now,
+                            TenantRow.status == "active",
+                            TenantEntitlementRow.enabled.is_(True),
+                        )
                         .order_by(SlotHoldRow.expires_at, SlotHoldRow.id)
                         .limit(limit)
                         .with_for_update(skip_locked=True)

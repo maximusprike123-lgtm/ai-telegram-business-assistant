@@ -38,7 +38,11 @@ class TenantRow(Base):
     __tablename__ = "tenants"
     __table_args__ = (
         CheckConstraint("settings_version >= 1", name="settings_version_positive"),
-        CheckConstraint("status IN ('active','inactive')", name="status_allowed"),
+        CheckConstraint("status IN ('active','suspended','archived')", name="status_allowed"),
+        CheckConstraint(
+            "(status = 'archived') = (archived_at IS NOT NULL)",
+            name="archive_time_consistent",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
@@ -48,6 +52,10 @@ class TenantRow(Base):
     default_locale: Mapped[str] = mapped_column(String(10), nullable=False)
     supported_locales: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
+    status_changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     settings_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -56,6 +64,123 @@ class TenantRow(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
     __mapper_args__ = {"version_id_col": settings_version}  # noqa: RUF012
+
+
+class TenantMemberRow(Base):
+    __tablename__ = "tenant_members"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id"),
+        UniqueConstraint("tenant_id", "subject"),
+        CheckConstraint(
+            "role IN ('owner','manager','agent','knowledge_editor','viewer')",
+            name="role_allowed",
+        ),
+        Index("ix_tenant_members_tenant_active", "tenant_id", "active"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    subject: Mapped[str] = mapped_column(String(200), nullable=False)
+    role: Mapped[str] = mapped_column(String(32), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class AdministrativeCredentialRow(Base):
+    __tablename__ = "administrative_credentials"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "member_id"],
+            ["tenant_members.tenant_id", "tenant_members.id"],
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("tenant_id", "id"),
+        UniqueConstraint("key_prefix"),
+        CheckConstraint(
+            "role IN ('owner','manager','agent','knowledge_editor','viewer')",
+            name="role_allowed",
+        ),
+        Index("ix_admin_credentials_tenant_active", "tenant_id", "revoked_at", "expires_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    member_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    key_prefix: Mapped[str] = mapped_column(String(40), nullable=False)
+    secret_hash: Mapped[str] = mapped_column(String(512), nullable=False)
+    role: Mapped[str] = mapped_column(String(32), nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rotated_from_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class TenantEntitlementRow(Base):
+    __tablename__ = "tenant_entitlements"
+    __table_args__ = (
+        CheckConstraint(
+            "capability IN ('telegram','booking','qualification','ai_routing',"
+            "'knowledge_answers','background_notifications')",
+            name="capability_allowed",
+        ),
+        CheckConstraint("version >= 1", name="version_positive"),
+        Index("ix_tenant_entitlements_tenant_enabled", "tenant_id", "enabled"),
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), primary_key=True
+    )
+    capability: Mapped[str] = mapped_column(String(50), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
+
+
+class TenantProvisioningRow(Base):
+    __tablename__ = "tenant_provisioning_records"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "owner_member_id"],
+            ["tenant_members.tenant_id", "tenant_members.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "credential_id"],
+            ["administrative_credentials.tenant_id", "administrative_credentials.id"],
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("idempotency_key"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    owner_member_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    credential_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
 
 class CustomerRow(Base):

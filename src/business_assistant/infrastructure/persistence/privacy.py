@@ -32,6 +32,7 @@ from .sqlalchemy.models import (
     RetentionPolicyRow,
     SlotHoldRow,
     TelegramUpdateRow,
+    TenantRow,
 )
 
 
@@ -51,7 +52,11 @@ class SQLAlchemyPrivacyStore:
                 (
                     await session.scalars(
                         select(RetentionPolicyRow)
-                        .where(RetentionPolicyRow.automatic_execution_enabled.is_(True))
+                        .join(TenantRow, TenantRow.id == RetentionPolicyRow.tenant_id)
+                        .where(
+                            RetentionPolicyRow.automatic_execution_enabled.is_(True),
+                            TenantRow.status == "active",
+                        )
                         .order_by(RetentionPolicyRow.tenant_id)
                         .limit(limit)
                     )

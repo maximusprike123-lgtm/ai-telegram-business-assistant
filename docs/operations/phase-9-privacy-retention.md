@@ -55,7 +55,7 @@ Recovery, when legally and operationally appropriate, requires an approved backu
 must not silently reintroduce data removed by a customer request. Phase 9 does not automate backup
 expiry or storage-provider deletion.
 
-There is no scheduler or background worker in this phase. Operators run preview/execution
-manually; Phase 10 may schedule the same application use case without moving policy into Celery.
+Phase 9 shipped no scheduler. Phase 10 now schedules the same persistence boundary only for tenant
+policies with explicit `automatic_execution_enabled=true`; policy does not move into Celery.
 Export packages, legal holds, multi-step approval, key destruction, and regional residency remain
 future deployment requirements.

@@ -58,6 +58,11 @@ and idempotency boundaries. PostgreSQL performs tenant-filtered anonymization an
 port. Booking/audit history and active records are preserved according to policy; the API never
 accepts tenant scope or deletion targets outside the authenticated application command.
 
+Phase 10 adds `application.background` delivery policy and ports. Celery schedules work, while
+PostgreSQL remains authoritative for outbox projection, notification leases/retries/dead letters,
+and operational status. Scheduled jobs reuse existing booking, privacy, knowledge, and provider
+boundaries rather than moving business rules into tasks.
+
 ## Decision records
 
 The [ADR index](decisions.md) records binding baseline choices. Later phases may supersede an ADR

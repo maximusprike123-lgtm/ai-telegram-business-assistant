@@ -28,7 +28,7 @@ not acceptance by itself.
 | FR-032 | 6 | Implemented: individual persisted answer edit without workflow restart |
 | FR-033 | 1, 6 | Implemented: configured deterministic rules, bounded score, grade, and matched explanation |
 | FR-034 | 1, 2, 6 | Implemented: consent, source, schema snapshot, score, timestamps, and lead lifecycle use case |
-| FR-035 | 6, 10 | Urgent rules and atomic idempotent outbox intent implemented; delivery remains Phase 10 |
+| FR-035 | 6, 10 | Implemented: urgent rules, atomic outbox intent, tenant subscription projection, and reliable delivery |
 | FR-040 | 3, 5 | Implemented: bookable dates/times rendered in tenant-local time with timezone |
 | FR-041 | 3, 5 | Implemented for indivisible capacity units: hours/breaks/overrides, duration/buffer, resources, blackout, bookings/holds, notice/horizon |
 | FR-042 | 5 | Implemented: displayed slots require a durable short-lived hold before review |
@@ -37,8 +37,8 @@ not acceptance by itself.
 | FR-045 | 5 | Implemented: safe summary and signed explicit confirmation callback |
 | FR-046 | 5 | Implemented: identity-owned idempotent cancellation and atomic new-hold rescheduling under cutoff |
 | FR-047 | 1, 2, 5 | Implemented: no hard delete, deterministic lifecycle, ordered status history |
-| FR-048 | 5, 10 | Planned: post-commit outbox notifications |
-| FR-049 | 5, 10 | Implemented at read/confirm plus bounded manual cleanup; automatic worker deferred by Phase 5 scope |
+| FR-048 | 5, 10 | Implemented: atomic booking lifecycle outbox events and post-commit staff notification delivery |
+| FR-049 | 5, 10 | Implemented: read/confirm expiry plus bounded scheduled worker using the Phase 5 transaction |
 | FR-050 | 3 | Implemented: override precedence, current status, bounded next-open calculation |
 | FR-051 | 3, 4 | Implemented: Telegram renders status, hours, and deterministic next opening |
 | FR-052 | 3, 6 | Implemented: response due time consumes effective tenant business intervals |
@@ -51,12 +51,12 @@ not acceptance by itself.
 | FR-070 | 4, 6 | Implemented: explicit Telegram human request creates/reuses a durable case |
 | FR-071 | 6, 7 | Explicit, unsupported, structured-safety, AI refusal/low-confidence, and unsafe-output handoff fallbacks implemented; repeated-failure policy remains deferred |
 | FR-072 | 2, 6 | Implemented: linked case, priority, safe structured context, summary, status, and due timestamp |
-| FR-073 | 6, 10 | Idempotent outbox notification intent implemented; recipients/delivery remain Phase 10 |
+| FR-073 | 6, 10 | Implemented: idempotent outbox intent, tenant-owned staff recipients, retries, and dead letters |
 | FR-074 | 1, 6 | Implemented: conversation generative-reply pause policy |
 | FR-075 | 6 | Implemented: RBAC-protected claim, resolve, reopen, and return-control use cases/API |
 | FR-076 | 2, 6, 10 | Implemented: every staff takeover/control action appends a durable audit event |
-| FR-080 | 10 | Planned: notification subscriptions |
-| FR-081 | 10, 11 | PII-minimization ADR accepted; payload implementation planned |
+| FR-080 | 10 | Implemented for Telegram staff recipients and lead/handoff event subscriptions |
+| FR-081 | 10, 11 | Implemented for Phase 10: allowlisted templates and PII-minimized event payloads; broader hardening remains Phase 11 |
 | FR-082 | 3, 6, 8, 10 | Qualification plus Markdown/FAQ knowledge ingest/publish/archive/test-answer API implemented; remaining admin resources stay phased |
 | FR-083 | 3, 6, 8, 11 | Tenant-derived qualification/handoff/knowledge RBAC and input validation implemented; full IdP remains deferred |
 | FR-084 | 1, 2, 8 | Implemented for synchronous Markdown/FAQ: lifecycle, deterministic chunking, embedding, ready/publish/archive status |
@@ -72,7 +72,7 @@ not acceptance by itself.
 | Tenant isolation (3.3) | Tenant-filtered repositories, composite FKs, integration tests | Every phase |
 | UTC/IANA time (6.4, 8.2) | Phase 3 tenant-local schedule engine, DST policy, aware API inputs | 5 slots |
 | PostgreSQL/pgvector (7.3, 9) | Tenant-filtered hybrid full-text/cosine retrieval with typed embedding metadata | Index benchmarking |
-| Transactional outbox (7.3) | Tenant-scoped durable schema in same database | 10 delivery |
+| Transactional outbox (7.3) | PostgreSQL-authoritative idempotent projection, leases, retries, and dead letters | Continued hardening |
 | Privacy/logging (15, 17) | Phase 9 classification, retention/anonymization, allowlisted logs, ADR 0004/0012, secret scan | 11 hardening |
 | AI gateway/safety (7.4, 12, 16) | Provider-neutral generation/embedding ports, strict validation, evidence grounding, metadata-only telemetry | Continued evaluation |
 | CI quality baseline (21, 22) | Ruff, mypy, API/unit/PostgreSQL tests, coverage, build, secret scan | Expanded each phase |

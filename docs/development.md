@@ -9,7 +9,8 @@
 - FastAPI serves the protected business API and authenticated Telegram webhook. aiogram 3 is the
   Telegram presentation adapter. Phase 5 booking and Phase 6 qualification/handoff transactions
   require PostgreSQL. Phase 7 AI tests use an injected HTTP transport and never require provider
-  credentials or network access; Redis, Celery, and AI remain disabled by default.
+  credentials or network access; Redis, Celery, notification delivery, and AI remain disabled by
+  default.
 
 ## First setup
 
@@ -58,6 +59,7 @@ pytest tests/unit/test_ai_runtime.py tests/unit/test_openai_adapter.py \
 pytest tests/unit/test_knowledge.py tests/unit/test_openai_embeddings_adapter.py \
   tests/integration/test_phase8_knowledge.py
 pytest tests/unit/test_privacy.py tests/integration/test_phase9_privacy.py
+pytest tests/unit/test_background_processing.py tests/integration/test_phase10_background.py
 pytest -m postgresql
 alembic check
 ```
@@ -76,6 +78,8 @@ After migrating and seeding a disposable database, use the Phase 4 environment i
 uvicorn business_assistant.bootstrap.phase4:create_app_from_environment --factory
 business-assistant-telegram-polling  # explicit local polling mode only
 business-assistant-expire-holds      # bounded manual Phase 5 cleanup
+business-assistant-worker            # Phase 10 Celery queues
+business-assistant-beat              # Phase 10 schedule dispatcher
 ```
 
 The [Telegram runbook](operations/phase-4-telegram.md) documents mutually exclusive modes,
@@ -90,6 +94,8 @@ The [Phase 8 runbook](operations/phase-8-knowledge.md) documents ingestion, publ
 evidence thresholds, model changes, and rollback.
 The [Phase 9 runbook](operations/phase-9-privacy-retention.md) documents data classifications,
 policy approval, safe preview, customer anonymization, retention execution, and limitations.
+The [Phase 10 runbook](operations/phase-10-background-delivery.md) documents queues, retries,
+dead letters, scheduled maintenance, subscriptions, and monitoring.
 
 ## Git hooks
 

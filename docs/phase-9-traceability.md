@@ -12,8 +12,8 @@
 | Tenant isolation | Principal-derived scope and tenant predicates on every select/update/delete; cross-tenant tests |
 | Migration | Reversible `0008_phase9` policy/action tables with constraints and existing-tenant backfill |
 | API | Owner mutation/execution, manager read/preview, stable schemas/errors, OpenAPI verification |
-| No workers | Manual synchronous use case only; scheduling remains a later adapter concern |
+| Phase boundary | Phase 9 introduced only manual synchronous use cases; Phase 10 now schedules the same port |
 
-Explicitly deferred: conversation memory, summaries, background scheduling, export packages, legal
+Explicitly deferred from Phase 9: conversation memory, summaries, export packages, legal
 holds, backup-object expiry, encryption-key destruction, notifications, billing, dashboards, CRM,
 new AI features, agents, MCP, and LangGraph.

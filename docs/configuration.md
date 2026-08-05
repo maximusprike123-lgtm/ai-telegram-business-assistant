@@ -31,14 +31,14 @@ secrets do not belong in tenant configuration.
 | Controls | upload, retention, rate limits | environment defaults, then tenant policy |
 | Admin bootstrap | local operator token | local demo only |
 
-## Implemented groups through Phase 9
+## Implemented groups through Phase 10
 
 The loader validates application identity and public URL, PostgreSQL connectivity and bounded
 pool settings, internal API bind/timeout settings, tenant-bound API credentials, Telegram,
 Redis, Celery and OpenAI enablement, observability, and feature switches. An integration's
 credential or URL is required only when that integration is enabled. Telegram and the optional AI
-runtime and Phase 8 retrieval are implemented but disabled by default. Redis, Celery, and automatic
-notification delivery remain unimplemented/off.
+runtime, Phase 8 retrieval, Celery, and notification delivery are implemented but disabled by
+default. Redis is used only as non-authoritative broker transport when selected.
 
 Enabled Telegram requires a token, matching numeric bot ID, tenant UUID, callback signing key, and
 one delivery mode. Webhook mode additionally requires a public base URL plus independent header and
@@ -127,6 +127,16 @@ for execution and can be changed only through the owner-authorized API with opti
 The Northstar values are fictional examples, not legal policy. Audit/security records are excluded
 from automated Phase 9 deletion. Real deployments must approve legal holds, backup lifecycle,
 exports, jurisdiction, and retention periods before enabling a schedule.
+
+## Phase 10 background delivery
+
+`CELERY_ENABLED` requires `CELERY_BROKER_URL`; results remain independently optional.
+`NOTIFICATION_DELIVERY_ENABLED=true` additionally requires the existing complete Telegram
+configuration. `WORKER_BATCH_SIZE`, `WORKER_LEASE_SECONDS`, `NOTIFICATION_MAX_ATTEMPTS`, and the
+retry base/maximum settings are bounded. The base retry delay cannot exceed the maximum.
+
+Tenant `automatic_execution_enabled` is the authoritative retention-schedule opt-in and defaults
+to false, including Northstar. Environment configuration cannot override that tenant decision.
 
 ## Secret handling
 

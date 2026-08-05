@@ -26,7 +26,9 @@ knowledge answers, lead qualification, booking, and human handoff.
   retrieval, publication/effective-date filters, evidence gating, citations, and safe fallback
 - Phase 9: tenant-scoped data classification, versioned retention policies, safe anonymization,
   deliberate deletion workflows, durable action/audit records, and privacy-safe logging
-- Phases 10–13: not implemented
+- Phase 10: Celery background workers, database-authoritative outbox dispatch, retry/dead-letter
+  notification delivery, scheduled maintenance/re-indexing, and tenant-scoped worker monitoring
+- Phases 11–13: not implemented
 
 The current code is deliberately not a chatbot. Consequential operations belong to validated
 application and domain workflows; future AI output remains advisory until it passes structured,
@@ -47,8 +49,8 @@ presentation -> application <- infrastructure
 
 Dependencies point inward. Domain and application modules cannot import FastAPI, aiogram,
 SQLAlchemy, Redis, Celery, or OpenAI SDK types. PostgreSQL/pgvector is authoritative,
-Redis will hold non-authoritative short-lived state. Phase 2 creates the transactional outbox
-schema but intentionally defers dispatch workers to Phase 10.
+Redis holds only non-authoritative broker state. PostgreSQL remains authoritative for outbox,
+notification delivery, attempts, leases, and dead letters.
 
 See [Architecture overview](docs/architecture/README.md) and the
 [ADR index](docs/architecture/decisions.md).
@@ -118,6 +120,8 @@ Knowledge ingestion, publication, hybrid retrieval, citations, and rollback are 
 [Phase 8 knowledge runbook](docs/operations/phase-8-knowledge.md).
 Data classification, policy approval, preview, anonymization, and retention execution are in the
 [Phase 9 privacy runbook](docs/operations/phase-9-privacy-retention.md).
+Background worker startup, queues, retries, dead letters, schedules, and monitoring are in the
+[Phase 10 background delivery runbook](docs/operations/phase-10-background-delivery.md).
 
 ## Repository layout
 
@@ -151,6 +155,7 @@ docs/
 - [Phase 7 traceability](docs/phase-7-traceability.md)
 - [Phase 8 traceability](docs/phase-8-traceability.md)
 - [Phase 9 traceability](docs/phase-9-traceability.md)
+- [Phase 10 traceability](docs/phase-10-traceability.md)
 
 The implementation specification remains the source of truth. Documentation in this repository
 records decisions and implementation status; it does not replace the specification.

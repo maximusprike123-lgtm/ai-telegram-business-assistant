@@ -1,5 +1,10 @@
 # Developer workflow
 
+Phase 12 PostgreSQL tests cover tenant provisioning, lifecycle, members, credentials, entitlements,
+audit safety, migration round trips, and Northstar compatibility. Set `TEST_DATABASE_URL` before
+running `pytest` or the pre-push hook; otherwise PostgreSQL tests skip and the repository-wide
+coverage threshold is expected to fail.
+
 ## Supported toolchain
 
 - Python 3.12 or newer; CI verifies Python 3.12 and 3.13.

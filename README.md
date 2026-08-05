@@ -107,6 +107,9 @@ pre-commit run --all-files
 Detailed setup, lock updates, and CI-equivalent commands are in
 [Developer workflow](docs/development.md). Configuration ownership is documented in
 [Environment and configuration](docs/configuration.md).
+Credential behavior and tenant bootstrap are documented in
+[Authentication](docs/authentication.md), [tenant provisioning](docs/tenant-provisioning.md), and
+[security notes](docs/security.md).
 
 Database migration and fictional demo seed commands are documented in the
 [Phase 2 database runbook](docs/operations/database.md).

@@ -1,5 +1,11 @@
 # Phase 3 internal API runbook
 
+Phase 12 extends the same API application with protected `/api/v1/admin/*` routes. Database-backed
+credentials are tenant-bound and can be created, listed, rotated, revoked, and expired. See
+[Authentication](../authentication.md), [tenant provisioning](../tenant-provisioning.md), and the
+[Phase 12 administration runbook](phase-12-tenant-administration.md). Suspended and archived tenants
+retain only this scoped recovery surface; ordinary business routes fail closed.
+
 This read-only API exposes deterministic public business facts for one authenticated tenant. It
 does not connect to Telegram, invoke AI, or create and manage appointments.
 

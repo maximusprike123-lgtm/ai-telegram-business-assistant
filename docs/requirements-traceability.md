@@ -61,8 +61,8 @@ not acceptance by itself.
 | FR-083 | 3, 6, 8, 11 | Tenant-derived qualification/handoff/knowledge RBAC and input validation implemented; full IdP remains deferred |
 | FR-084 | 1, 2, 8 | Implemented for synchronous Markdown/FAQ: lifecycle, deterministic chunking, embedding, ready/publish/archive status |
 | FR-090 | 10 | Domain event envelope implemented; analytics catalog/projection planned |
-| FR-091 | 10, 11 | Tenant event context implemented; safe dimensions planned |
-| FR-092 | 10, 11 | Planned: protected aggregate endpoints |
+| FR-091 | 10, 11 | Implemented: tenant event context plus fixed safe operational metric dimensions |
+| FR-092 | 10, 11 | Implemented: authenticated diagnostics and protected low-cardinality metrics endpoint |
 
 ## Non-functional and baseline ownership
 
@@ -73,7 +73,7 @@ not acceptance by itself.
 | UTC/IANA time (6.4, 8.2) | Phase 3 tenant-local schedule engine, DST policy, aware API inputs | 5 slots |
 | PostgreSQL/pgvector (7.3, 9) | Tenant-filtered hybrid full-text/cosine retrieval with typed embedding metadata | Index benchmarking |
 | Transactional outbox (7.3) | PostgreSQL-authoritative idempotent projection, leases, retries, and dead letters | Continued hardening |
-| Privacy/logging (15, 17) | Phase 9 classification, retention/anonymization, allowlisted logs, ADR 0004/0012, secret scan | 11 hardening |
+| Privacy/logging (15, 17) | Phase 11 constant-event allowlisted logs, bounded metrics, ADR 0004/0012/0014, secret scan | Continued review |
 | AI gateway/safety (7.4, 12, 16) | Provider-neutral generation/embedding ports, strict validation, evidence grounding, metadata-only telemetry | Continued evaluation |
 | CI quality baseline (21, 22) | Ruff, mypy, API/unit/PostgreSQL tests, coverage, build, secret scan | Expanded each phase |
 | Docker/runtime (19) | Explicitly deferred | 12 |

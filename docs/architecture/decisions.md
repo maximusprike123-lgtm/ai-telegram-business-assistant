@@ -15,3 +15,4 @@
 | [0011](0011-phase-8-tenant-scoped-knowledge-retrieval.md) | Accepted | Tenant-scoped ingestion, hybrid retrieval, evidence gating, and citation-backed answers |
 | [0012](0012-phase-9-privacy-retention-and-anonymization.md) | Accepted | Tenant retention policy, safe anonymization, deliberate deletion, and audit preservation |
 | [0013](0013-phase-10-background-delivery.md) | Accepted | PostgreSQL-authoritative outbox projection, retries, dead letters, scheduling, and monitoring |
+| [0014](0014-phase-11-production-observability.md) | Accepted | Provider-neutral metrics, privacy-safe logs, correlation, and feature-aware health diagnostics |

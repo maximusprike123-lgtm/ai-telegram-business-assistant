@@ -31,7 +31,7 @@ secrets do not belong in tenant configuration.
 | Controls | upload, retention, rate limits | environment defaults, then tenant policy |
 | Admin bootstrap | local operator token | local demo only |
 
-## Implemented groups through Phase 10
+## Implemented groups through Phase 11
 
 The loader validates application identity and public URL, PostgreSQL connectivity and bounded
 pool settings, internal API bind/timeout settings, tenant-bound API credentials, Telegram,
@@ -137,6 +137,19 @@ retry base/maximum settings are bounded. The base retry delay cannot exceed the 
 
 Tenant `automatic_execution_enabled` is the authoritative retention-schedule opt-in and defaults
 to false, including Northstar. Environment configuration cannot override that tenant decision.
+
+## Phase 11 observability
+
+`METRICS_ENABLED=false` keeps `/metrics` absent by default. Enabling it requires a dedicated
+`METRICS_AUTH_TOKEN`; production validation rejects weak placeholders. `SLOW_OPERATION_SECONDS`
+controls the safe slow-operation flag and is bounded from 0.01 to 300 seconds.
+`DEPENDENCY_HEALTH_TIMEOUT_SECONDS` bounds each live dependency check from 0.1 to 30 seconds.
+
+PostgreSQL and pgvector are always readiness requirements. Redis, Telegram, and AI are checked as
+required only when their existing feature configuration is enabled. `OTEL_EXPORTER_OTLP_ENDPOINT`
+remains reserved configuration; Phase 11 does not install or activate a trace exporter. Metrics
+tokens, correlation values, IDs, exception values, and customer/model content are never metric
+labels.
 
 ## Secret handling
 

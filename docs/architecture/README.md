@@ -63,6 +63,10 @@ PostgreSQL remains authoritative for outbox projection, notification leases/retr
 and operational status. Scheduled jobs reuse existing booking, privacy, knowledge, and provider
 boundaries rather than moving business rules into tasks.
 
+Phase 11 adds provider-neutral operational metrics and dependency-health ports. Presentation and
+infrastructure adapters emit only bounded dimensions and constant safe events. Correlation crosses
+request and durable-work boundaries without making telemetry authoritative or storing content.
+
 ## Decision records
 
 The [ADR index](decisions.md) records binding baseline choices. Later phases may supersede an ADR

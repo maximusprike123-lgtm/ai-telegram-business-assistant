@@ -121,8 +121,9 @@ versions live in `requirements.lock`, `requirements-build.lock`, and `requiremen
 
 ```bash
 python -m pip install 'pip-tools>=7.5,<8'
-pip-compile --extra dev --strip-extras --output-file requirements-dev.lock pyproject.toml
 pip-compile --strip-extras --output-file requirements.lock pyproject.toml
+pip-compile --constraint requirements.lock --extra dev --strip-extras \
+  --output-file requirements-dev.lock pyproject.toml
 pip-compile --strip-extras --output-file requirements-build.lock requirements-build.in
 python -m pip install --requirement requirements-dev.lock
 python -m pip check

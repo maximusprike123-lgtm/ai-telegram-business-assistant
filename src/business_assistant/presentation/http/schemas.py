@@ -53,6 +53,34 @@ class TenantAdminResponse(BaseModel):
     settings_version: int
 
 
+class BusinessProfileAdminUpdate(BaseModel):
+    description: str = Field(min_length=1, max_length=2000)
+    public_phone: str | None = Field(default=None, max_length=32)
+    public_email: str | None = Field(default=None, max_length=254)
+    website_url: str | None = Field(default=None, max_length=500)
+    address: str | None = Field(default=None, max_length=500)
+    service_area: str | None = Field(default=None, max_length=500)
+    parking_guidance: str | None = Field(default=None, max_length=1000)
+    payment_methods: tuple[str, ...] = Field(default=(), max_length=20)
+    warranty_policy: str | None = Field(default=None, max_length=2000)
+    appointment_policy: str | None = Field(default=None, max_length=2000)
+    expected_version: int = Field(ge=1)
+
+
+class BusinessProfileAdminResponse(BaseModel):
+    description: str
+    public_phone: str | None
+    public_email: str | None
+    website_url: str | None
+    address: str | None
+    service_area: str | None
+    parking_guidance: str | None
+    payment_methods: tuple[str, ...]
+    warranty_policy: str | None
+    appointment_policy: str | None
+    version: int
+
+
 class TenantMemberUpsert(BaseModel):
     subject: str = Field(min_length=1, max_length=200)
     role: Literal["owner", "manager", "agent", "knowledge_editor", "viewer"]

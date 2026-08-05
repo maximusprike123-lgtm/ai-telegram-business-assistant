@@ -17,6 +17,9 @@ Use the issued value as `X-Internal-API-Key`. Owner credentials can update the E
 profile, activate/suspend/archive, manage members, manage credentials, and change entitlements.
 Managers retain the existing profile/read permissions but cannot change lifecycle, ownership,
 credentials, or entitlements. The final active owner cannot be demoted or revoked.
+Owners and managers can update the existing English public-profile metadata through
+`/api/v1/admin/business-profile` with optimistic concurrency; schedule and product policies remain
+under their existing authorities.
 
 Credential listing exposes prefix and metadata only. Rotation atomically revokes the old key and
 returns a new secret once. Revocation and member removal immediately invalidate affected keys.

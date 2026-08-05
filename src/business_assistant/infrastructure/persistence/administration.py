@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from business_assistant.application.administration import (
     AdministrationError,
+    BusinessProfileView,
     Capability,
     CredentialMaterial,
     CredentialView,
@@ -19,8 +20,8 @@ from business_assistant.application.administration import (
 )
 from business_assistant.application.common.security import Role
 from business_assistant.application.observability import current_correlation_id
-from business_assistant.domain.shared import Locale, TenantId
-from business_assistant.domain.tenants import Tenant, TenantStatus
+from business_assistant.domain.shared import Locale, ScheduleId, TenantId
+from business_assistant.domain.tenants import Tenant, TenantPublicProfile, TenantStatus
 
 from .sqlalchemy.models import (
     AdministrativeCredentialRow,
@@ -185,6 +186,85 @@ class SQLAlchemyTenantAdministrationStore:
         async with self._session_factory() as session:
             row = await session.get(TenantRow, tenant_id.value)
             return _tenant(row) if row is not None else None
+
+    async def business_profile(self, tenant_id: TenantId) -> BusinessProfileView:
+        async with self._session_factory() as session:
+            row = await session.get(TenantPublicProfileRow, tenant_id.value)
+            if row is None:
+                raise AdministrationError(
+                    "Business profile was not found", code="administration.not_found"
+                )
+            return _business_profile(row)
+
+    async def update_business_profile(
+        self,
+        tenant_id: TenantId,
+        profile: BusinessProfileView,
+        *,
+        expected_version: int,
+        actor: str,
+    ) -> BusinessProfileView:
+        now = datetime.now(UTC)
+        async with self._session_factory() as session, session.begin():
+            row = await session.get(TenantPublicProfileRow, tenant_id.value, with_for_update=True)
+            if row is None:
+                raise AdministrationError(
+                    "Business profile was not found", code="administration.not_found"
+                )
+            if row.version != expected_version:
+                raise AdministrationError(
+                    "Business profile changed concurrently",
+                    code="administration.version_conflict",
+                )
+            entity = TenantPublicProfile(
+                tenant_id,
+                ScheduleId(row.schedule_id),
+                {Locale.EN: profile.description},
+                profile.public_phone,
+                profile.public_email,
+                profile.website_url,
+                {Locale.EN: profile.address} if profile.address is not None else {},
+                {Locale.EN: profile.service_area} if profile.service_area is not None else {},
+                (
+                    {Locale.EN: profile.parking_guidance}
+                    if profile.parking_guidance is not None
+                    else {}
+                ),
+                profile.payment_methods,
+                (
+                    {Locale.EN: profile.warranty_policy}
+                    if profile.warranty_policy is not None
+                    else {}
+                ),
+                (
+                    {Locale.EN: profile.appointment_policy}
+                    if profile.appointment_policy is not None
+                    else {}
+                ),
+                expected_version,
+            )
+            row.descriptions = {Locale.EN.value: entity.descriptions[Locale.EN]}
+            row.public_phone = entity.public_phone
+            row.public_email = entity.public_email
+            row.website_url = entity.website_url
+            row.addresses = _localized(entity.addresses)
+            row.service_areas = _localized(entity.service_areas)
+            row.parking_guidance = _localized(entity.parking_guidance)
+            row.payment_methods = list(entity.payment_methods)
+            row.warranty_policy = _localized(entity.warranty_policy)
+            row.appointment_policy = _localized(entity.appointment_policy)
+            self._audit(
+                session,
+                tenant_id,
+                actor,
+                "tenant.business_profile_updated",
+                "tenant_public_profile",
+                str(tenant_id),
+                {"version": expected_version + 1},
+                now,
+            )
+            await session.flush()
+            return _business_profile(row)
 
     async def update_tenant(
         self,
@@ -673,6 +753,26 @@ def _tenant(row: TenantRow) -> TenantView:
         TenantStatus(row.status),
         row.settings_version,
     )
+
+
+def _business_profile(row: TenantPublicProfileRow) -> BusinessProfileView:
+    return BusinessProfileView(
+        row.descriptions[Locale.EN.value],
+        row.public_phone,
+        row.public_email,
+        row.website_url,
+        row.addresses.get(Locale.EN.value),
+        row.service_areas.get(Locale.EN.value),
+        row.parking_guidance.get(Locale.EN.value),
+        tuple(row.payment_methods),
+        row.warranty_policy.get(Locale.EN.value),
+        row.appointment_policy.get(Locale.EN.value),
+        row.version,
+    )
+
+
+def _localized(values: dict[Locale, str]) -> dict[str, str]:
+    return {key.value: value for key, value in values.items()}
 
 
 def _tenant_entity(row: TenantRow) -> Tenant:

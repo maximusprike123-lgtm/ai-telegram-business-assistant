@@ -1,5 +1,6 @@
 from .models import (
     AdministrationError,
+    BusinessProfileView,
     Capability,
     CredentialIssue,
     CredentialMaterial,
@@ -16,6 +17,7 @@ from .service import TenantAdministration
 __all__ = [
     "AdministrationError",
     "ApiKeyAuthenticator",
+    "BusinessProfileView",
     "Capability",
     "CredentialIssue",
     "CredentialMaterial",

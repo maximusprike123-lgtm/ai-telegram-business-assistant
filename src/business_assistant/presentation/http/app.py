@@ -15,6 +15,7 @@ from fastapi.security import APIKeyHeader
 
 from business_assistant.application.administration import (
     ApiKeyAuthenticator,
+    BusinessProfileView,
     Capability,
     CredentialView,
     EntitlementView,
@@ -95,6 +96,8 @@ from business_assistant.domain.tenants import TenantStatus
 from .schemas import (
     AvailabilitySlotResponse,
     BusinessDayResponse,
+    BusinessProfileAdminResponse,
+    BusinessProfileAdminUpdate,
     BusinessStatusResponse,
     CategoryResponse,
     CredentialCreate,
@@ -333,6 +336,12 @@ def _tenant_admin_response(value: TenantView) -> TenantAdminResponse:
         status=value.status.value,
         settings_version=value.settings_version,
     )
+
+
+def _business_profile_admin_response(
+    value: BusinessProfileView,
+) -> BusinessProfileAdminResponse:
+    return BusinessProfileAdminResponse.model_validate(asdict(value))
 
 
 def _member_response(value: MemberView) -> TenantMemberResponse:
@@ -1128,6 +1137,47 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
                     timezone=body.timezone,
                     default_locale=Locale(body.default_locale),
                     expected_version=body.expected_version,
+                )
+            )
+
+        @app.get(
+            "/api/v1/admin/business-profile",
+            response_model=BusinessProfileAdminResponse,
+            tags=["Administration"],
+            responses=error_responses,
+        )
+        async def get_admin_business_profile(
+            principal: PrincipalDependency,
+        ) -> BusinessProfileAdminResponse:
+            return _business_profile_admin_response(
+                await administration.business_profile(principal)
+            )
+
+        @app.put(
+            "/api/v1/admin/business-profile",
+            response_model=BusinessProfileAdminResponse,
+            tags=["Administration"],
+            responses=error_responses,
+        )
+        async def update_admin_business_profile(
+            body: BusinessProfileAdminUpdate, principal: PrincipalDependency
+        ) -> BusinessProfileAdminResponse:
+            profile = BusinessProfileView(
+                body.description,
+                body.public_phone,
+                body.public_email,
+                body.website_url,
+                body.address,
+                body.service_area,
+                body.parking_guidance,
+                body.payment_methods,
+                body.warranty_policy,
+                body.appointment_policy,
+                body.expected_version,
+            )
+            return _business_profile_admin_response(
+                await administration.update_business_profile(
+                    principal, profile, expected_version=body.expected_version
                 )
             )
 

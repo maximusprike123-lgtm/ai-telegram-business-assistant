@@ -9,6 +9,7 @@ from business_assistant.domain.shared import Locale, TenantId
 from business_assistant.domain.tenants import TenantStatus
 
 from .models import (
+    BusinessProfileView,
     Capability,
     CredentialMaterial,
     CredentialView,
@@ -30,6 +31,15 @@ class TenantAdministrationStore(Protocol):
     ) -> ProvisioningResult: ...
 
     async def tenant(self, tenant_id: TenantId) -> TenantView | None: ...
+    async def business_profile(self, tenant_id: TenantId) -> BusinessProfileView: ...
+    async def update_business_profile(
+        self,
+        tenant_id: TenantId,
+        profile: BusinessProfileView,
+        *,
+        expected_version: int,
+        actor: str,
+    ) -> BusinessProfileView: ...
     async def update_tenant(
         self,
         tenant_id: TenantId,

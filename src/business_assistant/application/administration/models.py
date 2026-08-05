@@ -44,6 +44,21 @@ class TenantView:
 
 
 @dataclass(frozen=True, slots=True)
+class BusinessProfileView:
+    description: str
+    public_phone: str | None
+    public_email: str | None
+    website_url: str | None
+    address: str | None
+    service_area: str | None
+    parking_guidance: str | None
+    payment_methods: tuple[str, ...]
+    warranty_policy: str | None
+    appointment_policy: str | None
+    version: int
+
+
+@dataclass(frozen=True, slots=True)
 class MemberView:
     id: UUID
     tenant_id: TenantId

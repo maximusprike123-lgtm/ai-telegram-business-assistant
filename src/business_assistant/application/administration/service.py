@@ -8,6 +8,7 @@ from business_assistant.domain.shared import Locale
 from business_assistant.domain.tenants import Tenant, TenantStatus
 
 from .models import (
+    BusinessProfileView,
     Capability,
     CredentialIssue,
     CredentialView,
@@ -63,6 +64,25 @@ class TenantAdministration:
             name=name,
             timezone=timezone,
             default_locale=default_locale,
+            expected_version=expected_version,
+            actor=principal.subject,
+        )
+
+    async def business_profile(self, principal: Principal) -> BusinessProfileView:
+        principal.require(Permission.TENANT_ADMIN_READ)
+        return await self._store.business_profile(principal.tenant_id)
+
+    async def update_business_profile(
+        self,
+        principal: Principal,
+        profile: BusinessProfileView,
+        *,
+        expected_version: int,
+    ) -> BusinessProfileView:
+        principal.require(Permission.TENANT_PROFILE_WRITE)
+        return await self._store.update_business_profile(
+            principal.tenant_id,
+            profile,
             expected_version=expected_version,
             actor=principal.subject,
         )

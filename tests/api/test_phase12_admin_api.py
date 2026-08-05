@@ -68,6 +68,7 @@ def test_admin_openapi_and_bootstrap_provisioning_are_typed_and_secret_safe() ->
 
     schema = api.get("/openapi.json").json()
     assert "/api/v1/admin/tenant" in schema["paths"]
+    assert "/api/v1/admin/business-profile" in schema["paths"]
     assert "/api/v1/admin/credentials/{credential_id}/rotate" in schema["paths"]
 
     body = {

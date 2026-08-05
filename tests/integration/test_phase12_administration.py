@@ -6,6 +6,7 @@ from sqlalchemy import select, update
 
 from business_assistant.application.administration import (
     AdministrationError,
+    BusinessProfileView,
     Capability,
     ProvisionTenant,
     TenantAdministration,
@@ -56,6 +57,27 @@ async def test_provisioning_lifecycle_credentials_and_entitlements(database) -> 
     authenticator = DatabaseApiKeyAuthenticator(factory, secrets)
     principal = await authenticator.authenticate(created.credential.secret)
     assert principal == Principal("owner@example.test", tenant_id, Role.OWNER)
+
+    initial_profile = await service.business_profile(principal)
+    updated_profile = await service.update_business_profile(
+        principal,
+        BusinessProfileView(
+            "An English-only fictional business.",
+            "+1 555 010 0300",
+            "owner@example.test",
+            "https://example.test",
+            "1 Demo Street",
+            "Demo City",
+            "Parking at the entrance.",
+            ("card",),
+            "Demo warranty policy.",
+            "Appointments require confirmation.",
+            initial_profile.version,
+        ),
+        expected_version=initial_profile.version,
+    )
+    assert updated_profile.version == initial_profile.version + 1
+    assert (await service.business_profile(principal)).public_email == "owner@example.test"
 
     access = SQLAlchemyTenantAccessPolicy(factory)
     with pytest.raises(AdministrationError, match="unavailable"):

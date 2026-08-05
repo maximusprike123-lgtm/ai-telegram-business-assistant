@@ -8,6 +8,7 @@ from business_assistant.application.knowledge import (
     KnowledgeApplication,
     KnowledgePolicy,
 )
+from business_assistant.application.observability import OperationalMetricsPort
 from business_assistant.config import RuntimeSettings
 from business_assistant.infrastructure.ai import OpenAIEmbeddingsAdapter
 from business_assistant.infrastructure.persistence import SQLAlchemyKnowledgeStore
@@ -17,6 +18,7 @@ def build_knowledge_application(
     settings: RuntimeSettings,
     session_factory: async_sessionmaker[AsyncSession],
     client: httpx.AsyncClient | None,
+    metrics: OperationalMetricsPort | None = None,
 ) -> KnowledgeApplication | None:
     if not settings.features.rag_enabled:
         return None
@@ -47,4 +49,5 @@ def build_knowledge_application(
             maximum_answer_characters=settings.knowledge.maximum_answer_characters,
             maximum_source_bytes=settings.limits.upload_max_bytes,
         ),
+        metrics,
     )

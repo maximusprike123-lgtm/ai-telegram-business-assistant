@@ -6,11 +6,18 @@ import asyncio
 import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from time import monotonic
 from uuid import uuid4
 
 from business_assistant.application.ai import AIProviderError
 from business_assistant.application.common.errors import KnowledgeError
 from business_assistant.application.common.security import Permission, Principal
+from business_assistant.application.observability import (
+    Component,
+    Operation,
+    OperationalMetricsPort,
+    Outcome,
+)
 from business_assistant.domain.knowledge import KnowledgeDocument, KnowledgeStatus
 from business_assistant.domain.shared import Citation, Confidence, DocumentId, Locale, TenantId
 
@@ -57,11 +64,13 @@ class KnowledgeApplication:
         embeddings: EmbeddingPort,
         chunker: DeterministicKnowledgeChunker,
         policy: KnowledgePolicy,
+        metrics: OperationalMetricsPort | None = None,
     ) -> None:
         self._store = store
         self._embeddings = embeddings
         self._chunker = chunker
         self._policy = policy
+        self._metrics = metrics
 
     async def ingest_markdown(
         self, principal: Principal, *, title: str, markdown: str, locale: str
@@ -125,6 +134,7 @@ class KnowledgeApplication:
     async def answer_for_tenant(
         self, tenant_id: TenantId, *, query: str, locale: str = "en"
     ) -> KnowledgeAnswer:
+        started = monotonic()
         query_value = normalize_source(query)
         if not query_value or len(query_value) > 2000:
             raise KnowledgeError("Knowledge query must contain 1-2000 characters")
@@ -148,11 +158,13 @@ class KnowledgeApplication:
         except asyncio.CancelledError:
             raise
         except (AIProviderError, KnowledgeError, ValueError):
+            self._observe(Outcome.DEGRADED, started)
             return _fallback("retrieval_unavailable")
         eligible = tuple(
             item for item in candidates if item.score >= self._policy.minimum_relevance
         )
         if not eligible:
+            self._observe(Outcome.DEGRADED, started)
             return _fallback("insufficient_evidence")
         evidence = tuple(
             KnowledgeEvidence(
@@ -168,7 +180,17 @@ class KnowledgeApplication:
             for item in eligible
         )
         answer = _extractive_answer(evidence, self._policy.maximum_answer_characters)
+        self._observe(Outcome.SUCCESS, started)
         return KnowledgeAnswer(True, answer, evidence)
+
+    def _observe(self, outcome: Outcome, started: float) -> None:
+        if self._metrics is not None:
+            self._metrics.observe(
+                Component.RETRIEVAL,
+                Operation.SEARCH,
+                outcome,
+                monotonic() - started,
+            )
 
     async def reindex(self, *, limit: int = 100) -> int:
         if not 1 <= limit <= 1000:

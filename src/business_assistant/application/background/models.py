@@ -1,10 +1,11 @@
 """Provider-neutral models for reliable background delivery."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import StrEnum
 from uuid import UUID
 
+from business_assistant.application.observability import current_correlation_id
 from business_assistant.domain.shared import TenantId
 
 
@@ -37,6 +38,7 @@ class DeliveryClaim:
     recipient_id: str
     payload: dict[str, object]
     attempts: int
+    correlation_id: str = field(default_factory=current_correlation_id)
 
 
 @dataclass(frozen=True, slots=True)

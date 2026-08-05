@@ -2,8 +2,8 @@
 
 import logging
 from collections.abc import Awaitable, Callable
+from time import monotonic
 from typing import Any
-from uuid import uuid4
 
 from aiogram import Bot
 from aiogram.dispatcher.middlewares.base import BaseMiddleware
@@ -13,6 +13,14 @@ from aiogram.types.update import UpdateTypeLookupError
 
 from business_assistant.application.common.errors import ApplicationError
 from business_assistant.application.common.ports import Clock
+from business_assistant.application.observability import (
+    Component,
+    Operation,
+    OperationalMetricsPort,
+    Outcome,
+    correlation_scope,
+    parse_or_create,
+)
 from business_assistant.application.telegram import (
     ResolveTelegramIdentity,
     TelegramBotBinding,
@@ -28,12 +36,10 @@ class CorrelationMiddleware(BaseMiddleware):
         self, handler: NextHandler, event: TelegramObject, data: dict[str, Any]
     ) -> Any:
         supplied = data.get("correlation_id")
-        data["correlation_id"] = (
-            supplied
-            if isinstance(supplied, str) and supplied.isascii() and 1 <= len(supplied) <= 128
-            else str(uuid4())
-        )
-        return await handler(event, data)
+        correlation_id = parse_or_create(supplied if isinstance(supplied, str) else None)
+        data["correlation_id"] = correlation_id
+        with correlation_scope(correlation_id):
+            return await handler(event, data)
 
 
 class UpdateDeduplicationMiddleware(BaseMiddleware):
@@ -45,18 +51,21 @@ class UpdateDeduplicationMiddleware(BaseMiddleware):
         *,
         stale_after_seconds: int,
         logger: logging.Logger,
+        metrics: OperationalMetricsPort | None = None,
     ) -> None:
         self._store = store
         self._clock = clock
         self._binding = binding
         self._stale_after_seconds = stale_after_seconds
         self._logger = logger
+        self._metrics = metrics
 
     async def __call__(
         self, handler: NextHandler, event: TelegramObject, data: dict[str, Any]
     ) -> Any:
         if not isinstance(event, Update):
             return await handler(event, data)
+        started = monotonic()
         bot = data.get("bot")
         if not isinstance(bot, Bot) or bot.id != self._binding.bot_id:
             raise RuntimeError("Configured Telegram bot does not match the trusted binding")
@@ -85,6 +94,7 @@ class UpdateDeduplicationMiddleware(BaseMiddleware):
             TelegramUpdateClaimResult.DUPLICATE,
             TelegramUpdateClaimResult.IN_PROGRESS,
         }:
+            self._observe(Outcome.SUCCESS, started)
             return claim.result.value
         if event_type == "unknown":
             await self._store.complete(
@@ -94,6 +104,7 @@ class UpdateDeduplicationMiddleware(BaseMiddleware):
                 now=self._clock.now(),
             )
             self._logger.info("telegram.update.completed", extra={"safe_context": context})
+            self._observe(Outcome.SUCCESS, started)
             return "processed"
         try:
             await handler(event, data)
@@ -116,6 +127,7 @@ class UpdateDeduplicationMiddleware(BaseMiddleware):
                     }
                 },
             )
+            self._observe(Outcome.FAILURE, started)
             raise
         await self._store.complete(
             self._binding.tenant_id,
@@ -124,7 +136,17 @@ class UpdateDeduplicationMiddleware(BaseMiddleware):
             now=self._clock.now(),
         )
         self._logger.info("telegram.update.completed", extra={"safe_context": context})
+        self._observe(Outcome.SUCCESS, started)
         return "processed"
+
+    def _observe(self, outcome: Outcome, started: float) -> None:
+        if self._metrics is not None:
+            self._metrics.observe(
+                Component.TELEGRAM,
+                Operation.UPDATE,
+                outcome,
+                monotonic() - started,
+            )
 
 
 class TelegramIdentityMiddleware(BaseMiddleware):

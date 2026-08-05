@@ -9,6 +9,7 @@ from business_assistant.application.background import (
     NotificationChannel,
     NotificationSubscription,
 )
+from business_assistant.application.observability import correlation_scope
 from business_assistant.infrastructure.persistence import SQLAlchemyBackgroundStore
 from business_assistant.infrastructure.persistence.seed import NORTHSTAR_TENANT_ID, seed_northstar
 from business_assistant.infrastructure.persistence.sqlalchemy.models import (
@@ -47,23 +48,24 @@ async def test_outbox_projection_is_idempotent_and_tenant_scoped(
     )
     assert replaced.id == subscription.id
     event_id = uuid4()
-    async with factory() as session, session.begin():
-        session.add(
-            OutboxEventRow(
-                id=uuid4(),
-                event_id=event_id,
-                tenant_id=NORTHSTAR_TENANT_ID.value,
-                aggregate_type="lead",
-                aggregate_id=uuid4(),
-                event_type="lead.qualified",
-                event_version=1,
-                payload={"lead_id": str(uuid4()), "priority": "high"},
-                status="pending",
-                attempts=0,
-                available_at=NOW,
-                occurred_at=NOW,
+    with correlation_scope("phase11-correlation"):
+        async with factory() as session, session.begin():
+            session.add(
+                OutboxEventRow(
+                    id=uuid4(),
+                    event_id=event_id,
+                    tenant_id=NORTHSTAR_TENANT_ID.value,
+                    aggregate_type="lead",
+                    aggregate_id=uuid4(),
+                    event_type="lead.qualified",
+                    event_version=1,
+                    payload={"lead_id": str(uuid4()), "priority": "high"},
+                    status="pending",
+                    attempts=0,
+                    available_at=NOW,
+                    occurred_at=NOW,
+                )
             )
-        )
 
     assert await store.dispatch_outbox(now=NOW, limit=10, lease_seconds=60, max_attempts=6) == (
         1,
@@ -83,6 +85,7 @@ async def test_outbox_projection_is_idempotent_and_tenant_scoped(
     assert event is not None and event.status == "published" and event.published_at == NOW
     assert len(deliveries) == 1
     assert deliveries[0].tenant_id == NORTHSTAR_TENANT_ID.value
+    assert event.correlation_id == deliveries[0].correlation_id == "phase11-correlation"
     assert deliveries[0].payload == {
         "lead_id": deliveries[0].payload["lead_id"],
         "priority": "high",

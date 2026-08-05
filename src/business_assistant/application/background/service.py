@@ -1,10 +1,18 @@
 """Reliable delivery orchestration with validated templates and bounded retries."""
 
 import asyncio
+from time import monotonic
 from uuid import uuid4
 
 from business_assistant.application.common.ports import Clock
 from business_assistant.application.common.security import Permission, Principal
+from business_assistant.application.observability import (
+    Component,
+    Operation,
+    OperationalMetricsPort,
+    Outcome,
+    correlation_scope,
+)
 
 from .models import (
     DeliveryClaim,
@@ -41,11 +49,13 @@ class BackgroundApplication:
         gateway: NotificationGatewayPort | None,
         clock: Clock,
         retry_policy: RetryPolicy,
+        metrics: OperationalMetricsPort | None = None,
     ) -> None:
         self._store = store
         self._gateway = gateway
         self._clock = clock
         self._retry = retry_policy
+        self._metrics = metrics
 
     async def create_subscription(
         self,
@@ -75,22 +85,34 @@ class BackgroundApplication:
 
     async def worker_health(self, principal: Principal) -> WorkerHealth:
         principal.require(Permission.WORKER_MONITOR_READ)
-        return await self._store.health(principal.tenant_id)
+        health = await self._store.health(principal.tenant_id)
+        if self._metrics is not None:
+            self._metrics.set_backlog("outbox", health.pending_outbox)
+            self._metrics.set_backlog("notifications", health.pending_notifications)
+        return health
 
     async def dispatch_outbox(
         self, *, limit: int = 100, lease_seconds: int = 60
     ) -> tuple[int, int, int]:
-        return await self._store.dispatch_outbox(
+        started = monotonic()
+        result = await self._store.dispatch_outbox(
             now=self._clock.now(),
             limit=limit,
             lease_seconds=lease_seconds,
             max_attempts=self._retry.max_attempts,
         )
+        if self._metrics is not None:
+            outcome = Outcome.DEAD_LETTER if result[2] else Outcome.SUCCESS
+            self._metrics.observe(
+                Component.OUTBOX, Operation.DISPATCH, outcome, monotonic() - started
+            )
+        return result
 
     async def deliver_notifications(
         self, *, limit: int = 100, lease_seconds: int = 60
     ) -> DeliveryOutcome:
         now = self._clock.now()
+        started = monotonic()
         if self._gateway is None:
             raise RuntimeError("Notification gateway is not configured")
         claims = await self._store.claim_notifications(
@@ -98,40 +120,52 @@ class BackgroundApplication:
         )
         succeeded = retried = dead = 0
         for claim in claims:
-            try:
-                await self._gateway.send(claim, text=_render(claim))
-            except asyncio.CancelledError:
-                raise
-            except NotificationDeliveryError as exc:
-                if exc.retryable and claim.attempts < self._retry.max_attempts:
-                    await self._store.retry_delivery(
-                        claim,
-                        at=self._retry.next_attempt_at(
-                            claim_id=claim.id, attempts=claim.attempts, now=now
-                        ),
-                        error_code=exc.code,
-                    )
-                    retried += 1
+            with correlation_scope(claim.correlation_id):
+                try:
+                    await self._gateway.send(claim, text=_render(claim))
+                except asyncio.CancelledError:
+                    raise
+                except NotificationDeliveryError as exc:
+                    if exc.retryable and claim.attempts < self._retry.max_attempts:
+                        await self._store.retry_delivery(
+                            claim,
+                            at=self._retry.next_attempt_at(
+                                claim_id=claim.id, attempts=claim.attempts, now=now
+                            ),
+                            error_code=exc.code,
+                        )
+                        retried += 1
+                    else:
+                        await self._store.dead_letter(claim, at=now, error_code=exc.code)
+                        dead += 1
+                except Exception:
+                    if claim.attempts < self._retry.max_attempts:
+                        await self._store.retry_delivery(
+                            claim,
+                            at=self._retry.next_attempt_at(
+                                claim_id=claim.id, attempts=claim.attempts, now=now
+                            ),
+                            error_code="delivery.unexpected",
+                        )
+                        retried += 1
+                    else:
+                        await self._store.dead_letter(
+                            claim, at=now, error_code="delivery.unexpected"
+                        )
+                        dead += 1
                 else:
-                    await self._store.dead_letter(claim, at=now, error_code=exc.code)
-                    dead += 1
-            except Exception:
-                if claim.attempts < self._retry.max_attempts:
-                    await self._store.retry_delivery(
-                        claim,
-                        at=self._retry.next_attempt_at(
-                            claim_id=claim.id, attempts=claim.attempts, now=now
-                        ),
-                        error_code="delivery.unexpected",
-                    )
-                    retried += 1
-                else:
-                    await self._store.dead_letter(claim, at=now, error_code="delivery.unexpected")
-                    dead += 1
-            else:
-                await self._store.mark_delivered(claim, at=now)
-                succeeded += 1
-        return DeliveryOutcome(len(claims), succeeded, retried, dead)
+                    await self._store.mark_delivered(claim, at=now)
+                    succeeded += 1
+        outcome = DeliveryOutcome(len(claims), succeeded, retried, dead)
+        if self._metrics is not None:
+            result = Outcome.DEAD_LETTER if dead else Outcome.RETRY if retried else Outcome.SUCCESS
+            self._metrics.observe(
+                Component.NOTIFICATION,
+                Operation.DELIVER,
+                result,
+                monotonic() - started,
+            )
+        return outcome
 
 
 def _render(claim: DeliveryClaim) -> str:

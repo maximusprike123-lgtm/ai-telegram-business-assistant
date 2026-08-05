@@ -29,6 +29,8 @@ from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, ExcludeConstraint
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from business_assistant.application.observability import current_correlation_id
+
 from .base import Base
 
 
@@ -1303,6 +1305,9 @@ class OutboxEventRow(Base):
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
     event_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    correlation_id: Mapped[str] = mapped_column(
+        String(128), nullable=False, default=current_correlation_id
+    )
     tenant_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
     )
@@ -1373,6 +1378,9 @@ class NotificationDeliveryRow(Base):
         PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
     )
     event_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    correlation_id: Mapped[str] = mapped_column(
+        String(128), nullable=False, default=current_correlation_id
+    )
     subscription_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     event_type: Mapped[str] = mapped_column(String(100), nullable=False)
     channel: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -1398,6 +1406,9 @@ class WorkerRunRow(Base):
     )
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    correlation_id: Mapped[str] = mapped_column(
+        String(128), nullable=False, default=current_correlation_id
+    )
     tenant_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT")
     )

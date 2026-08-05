@@ -18,6 +18,11 @@ from business_assistant.application.tenants import GetTenantPublicProfile
 from business_assistant.bootstrap.knowledge import build_knowledge_application
 from business_assistant.bootstrap.privacy import build_privacy_application
 from business_assistant.config import ConfigurationError, RuntimeSettings, load_settings
+from business_assistant.infrastructure.observability import (
+    DependencyHealthChecker,
+    PrometheusMetrics,
+    configure_logging,
+)
 from business_assistant.infrastructure.persistence import (
     SQLAlchemyBackgroundStore,
     create_engine,
@@ -28,7 +33,11 @@ from business_assistant.infrastructure.persistence.sqlalchemy.unit_of_work impor
 )
 from business_assistant.infrastructure.security import StaticApiKeyAuthenticator
 from business_assistant.infrastructure.system import UTCClock
-from business_assistant.presentation.http import Phase3ApiServices, create_phase3_app
+from business_assistant.presentation.http import (
+    OperationalApiServices,
+    Phase3ApiServices,
+    create_phase3_app,
+)
 
 
 def build_phase3_app(settings: RuntimeSettings) -> FastAPI:
@@ -55,6 +64,14 @@ def build_phase3_app(settings: RuntimeSettings) -> FastAPI:
 
     typed_factory: Phase3UnitOfWorkFactory = uow_factory
     clock = UTCClock()
+    metrics = PrometheusMetrics()
+    health = DependencyHealthChecker(
+        settings,
+        session_factory,
+        metrics,
+        timeout_seconds=settings.observability.dependency_timeout_seconds,
+    )
+    logger = configure_logging(settings.observability.log_level, settings.observability.log_format)
     principal = Principal(
         "static-internal-operator", security.internal_api_tenant_id, security.internal_api_role
     )
@@ -72,7 +89,7 @@ def build_phase3_app(settings: RuntimeSettings) -> FastAPI:
         status=GetBusinessStatus(typed_factory, clock),
         next_opening=GetNextOpening(typed_factory, clock),
         authenticator=StaticApiKeyAuthenticator(security.internal_api_key, principal),
-        knowledge=build_knowledge_application(settings, session_factory, ai_client),
+        knowledge=build_knowledge_application(settings, session_factory, ai_client, metrics),
         privacy=build_privacy_application(session_factory),
         background=BackgroundApplication(
             SQLAlchemyBackgroundStore(session_factory),
@@ -83,6 +100,15 @@ def build_phase3_app(settings: RuntimeSettings) -> FastAPI:
                 settings.celery.retry_base_seconds,
                 settings.celery.retry_max_seconds,
             ),
+            metrics,
+        ),
+        operations=OperationalApiServices(
+            metrics,
+            health,
+            logger,
+            settings.observability.metrics_enabled,
+            settings.observability.metrics_auth_token,
+            settings.observability.slow_operation_seconds,
         ),
     )
     app = create_phase3_app(services)

@@ -1,13 +1,16 @@
 """Thin authenticated Phase 3 FastAPI presentation adapter."""
 
+import logging
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
+from hmac import compare_digest
+from time import monotonic
 from typing import Annotated, Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import Depends, FastAPI, Header, Query, Request, Security
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.security import APIKeyHeader
 
 from business_assistant.application.background import (
@@ -23,7 +26,7 @@ from business_assistant.application.catalog import (
     ServiceDTO,
 )
 from business_assistant.application.common.errors import ApplicationError
-from business_assistant.application.common.security import Principal
+from business_assistant.application.common.security import Permission, Principal
 from business_assistant.application.handoffs import HandoffApplication, HandoffView
 from business_assistant.application.knowledge import (
     KnowledgeAnswer,
@@ -41,6 +44,15 @@ from business_assistant.application.leads import (
     QualificationSchema,
     ScoreRule,
     Sensitivity,
+)
+from business_assistant.application.observability import (
+    Component,
+    HealthCheckPort,
+    Operation,
+    OperationalMetricsPort,
+    Outcome,
+    correlation_scope,
+    parse_or_create,
 )
 from business_assistant.application.privacy import (
     PrivacyApplication,
@@ -113,6 +125,17 @@ class Phase3ApiServices:
     knowledge: KnowledgeApplication | None = None
     privacy: PrivacyApplication | None = None
     background: BackgroundApplication | None = None
+    operations: "OperationalApiServices | None" = None
+
+
+@dataclass(frozen=True, slots=True)
+class OperationalApiServices:
+    metrics: OperationalMetricsPort
+    health: HealthCheckPort
+    logger: logging.Logger
+    metrics_enabled: bool
+    metrics_auth_token: str | None
+    slow_operation_seconds: float = 1.0
 
 
 def _schema_response(schema: QualificationSchema) -> QualificationSchemaResponse:
@@ -296,13 +319,50 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
 
     @app.middleware("http")
     async def correlation_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
-        supplied = request.headers.get("X-Request-ID", "")
-        correlation_id = (
-            supplied if supplied.isascii() and 1 <= len(supplied) <= 128 else str(uuid4())
-        )
-        request.state.correlation_id = correlation_id
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = correlation_id
+        started = monotonic()
+        operations = services.operations
+        with correlation_scope(parse_or_create(request.headers.get("X-Request-ID"))) as value:
+            correlation_id = str(value)
+            request.state.correlation_id = correlation_id
+            response = await call_next(request)
+            response.headers["X-Request-ID"] = correlation_id
+        if operations is not None:
+            duration = monotonic() - started
+            outcome = Outcome.SUCCESS if response.status_code < 500 else Outcome.FAILURE
+            operations.metrics.observe(Component.HTTP, Operation.REQUEST, outcome, duration)
+            route = getattr(request.scope.get("route"), "path", "unmatched")
+            domain_component = (
+                Component.BOOKING
+                if route.startswith("/api/v1/availability")
+                else Component.HANDOFF
+                if route.startswith("/api/v1/handoffs")
+                else Component.RETRIEVAL
+                if route.startswith("/api/v1/knowledge/test-answer")
+                else None
+            )
+            if domain_component is not None:
+                operations.metrics.observe(
+                    domain_component,
+                    Operation.WORKFLOW,
+                    outcome,
+                    duration,
+                )
+            operations.logger.info(
+                "http.request.completed",
+                extra={
+                    "safe_context": {
+                        "correlation_id": correlation_id,
+                        "component": Component.HTTP.value,
+                        "operation": Operation.REQUEST.value,
+                        "outcome": outcome.value,
+                        "method": request.method,
+                        "route": route,
+                        "status_code": response.status_code,
+                        "duration_ms": round(duration * 1000),
+                        "slow": duration >= operations.slow_operation_seconds,
+                    }
+                },
+            )
         return response
 
     async def authenticated_principal(
@@ -318,6 +378,53 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
         return principal
 
     PrincipalDependency = Annotated[Principal, Depends(authenticated_principal)]
+
+    @app.get("/health/live", tags=["Operations"], include_in_schema=False)
+    async def liveness() -> dict[str, str]:
+        return {"status": "alive"}
+
+    operations = services.operations
+    if operations is not None:
+
+        @app.get("/health/ready", tags=["Operations"], include_in_schema=False)
+        async def readiness() -> JSONResponse:
+            report = await operations.health.check()
+            return JSONResponse(
+                status_code=200 if report.ready else 503,
+                content={"status": "ready" if report.ready else "not_ready"},
+            )
+
+        @app.get("/metrics", tags=["Operations"], include_in_schema=False)
+        async def metrics(request: Request) -> Response:
+            if not operations.metrics_enabled or operations.metrics_auth_token is None:
+                return Response(status_code=404)
+            supplied = request.headers.get("Authorization", "")
+            expected = f"Bearer {operations.metrics_auth_token}"
+            if not compare_digest(supplied, expected):
+                return Response(status_code=401)
+            return Response(
+                operations.metrics.render(),
+                media_type="text/plain; version=0.0.4; charset=utf-8",
+            )
+
+        @app.get("/api/v1/operations/diagnostics", tags=["Operations"])
+        async def diagnostics(principal: PrincipalDependency) -> dict[str, Any]:
+            principal.require(Permission.WORKER_MONITOR_READ)
+            report = await operations.health.check()
+            return {
+                "ready": report.ready,
+                "checked_at": report.checked_at.isoformat(),
+                "dependencies": [
+                    {
+                        "name": item.name,
+                        "status": item.status.value,
+                        "required": item.required,
+                        "latency_ms": item.latency_ms,
+                        "error_code": item.error_code,
+                    }
+                    for item in report.dependencies
+                ],
+            }
 
     @app.exception_handler(ApplicationError)
     async def application_error_handler(request: Request, exc: ApplicationError) -> JSONResponse:

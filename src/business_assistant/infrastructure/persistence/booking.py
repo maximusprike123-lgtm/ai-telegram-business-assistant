@@ -26,6 +26,7 @@ from business_assistant.application.common.errors import (
     BookingNotFoundError,
     BookingPolicyError,
 )
+from business_assistant.application.observability import current_correlation_id
 from business_assistant.domain.scheduling import BusinessSchedule
 from business_assistant.domain.shared import (
     BookingDraftId,
@@ -74,6 +75,7 @@ def _booking_event(
         OutboxEventRow(
             id=event_id,
             event_id=event_id,
+            correlation_id=current_correlation_id(),
             tenant_id=tenant_id.value,
             aggregate_type="booking",
             aggregate_id=booking.id,

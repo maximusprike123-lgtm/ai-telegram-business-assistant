@@ -15,6 +15,7 @@ from business_assistant.application.common.errors import (
 )
 from business_assistant.application.common.ports import Clock
 from business_assistant.application.leads import InvalidAnswerError
+from business_assistant.application.observability import OperationalMetricsPort
 from business_assistant.application.telegram import (
     ResolveTelegramIdentity,
     TelegramBotBinding,
@@ -52,6 +53,7 @@ class TelegramRuntime:
     clock: Clock
     processing_stale_seconds: int
     logger: logging.Logger
+    metrics: OperationalMetricsPort | None = None
 
 
 def build_dispatcher(runtime: TelegramRuntime) -> Dispatcher:
@@ -321,6 +323,7 @@ def build_dispatcher(runtime: TelegramRuntime) -> Dispatcher:
             runtime.binding,
             stale_after_seconds=runtime.processing_stale_seconds,
             logger=runtime.logger,
+            metrics=runtime.metrics,
         )
     )
     dispatcher.update.outer_middleware(

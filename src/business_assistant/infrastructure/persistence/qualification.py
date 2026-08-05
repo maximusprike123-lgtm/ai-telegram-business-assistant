@@ -28,6 +28,7 @@ from business_assistant.application.leads import (
     TriggerResult,
     next_missing_field,
 )
+from business_assistant.application.observability import current_correlation_id
 from business_assistant.application.scheduling.engine import business_due_at
 from business_assistant.application.telegram import TelegramIdentity
 from business_assistant.domain.handoffs import (
@@ -346,6 +347,7 @@ def _outbox(
         OutboxEventRow(
             id=event_id,
             event_id=event_id,
+            correlation_id=current_correlation_id(),
             tenant_id=tenant_id.value,
             aggregate_type=aggregate_type,
             aggregate_id=aggregate_id,

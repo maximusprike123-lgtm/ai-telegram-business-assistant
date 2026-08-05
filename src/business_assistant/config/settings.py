@@ -223,6 +223,9 @@ class ObservabilityConfig:
     include_message_text: bool
     otlp_endpoint: str | None
     metrics_auth_token: str | None
+    metrics_enabled: bool
+    slow_operation_seconds: float
+    dependency_timeout_seconds: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -589,7 +592,15 @@ def load_settings(environ: Mapping[str, str] | None = None) -> RuntimeSettings:
                 schemes=frozenset({"http", "https", "grpc"}),
                 required=False,
             ),
-            _secret(values, "METRICS_AUTH_TOKEN", required=False, production=production),
+            _secret(
+                values,
+                "METRICS_AUTH_TOKEN",
+                required=_boolean(values, "METRICS_ENABLED", False),
+                production=production,
+            ),
+            _boolean(values, "METRICS_ENABLED", False),
+            _number(values, "SLOW_OPERATION_SECONDS", 1.0, 0.01, 300),
+            _number(values, "DEPENDENCY_HEALTH_TIMEOUT_SECONDS", 2.0, 0.1, 30),
         ),
         features=features,
         limits=LimitConfig(

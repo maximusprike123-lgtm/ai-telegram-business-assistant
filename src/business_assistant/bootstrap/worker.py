@@ -3,6 +3,7 @@
 import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+from time import monotonic
 from uuid import uuid4
 
 import httpx
@@ -15,8 +16,18 @@ from business_assistant.application.background import (
     DeliveryClaim,
     RetryPolicy,
 )
+from business_assistant.application.observability import (
+    Component,
+    Operation,
+    Outcome,
+    correlation_scope,
+    current_correlation_id,
+)
 from business_assistant.config import RuntimeSettings, load_settings
 from business_assistant.infrastructure.notifications import TelegramNotificationGateway
+from business_assistant.infrastructure.observability import (
+    PrometheusMetrics,
+)
 from business_assistant.infrastructure.persistence import (
     SQLAlchemyBackgroundStore,
     SQLAlchemyBookingStore,
@@ -32,6 +43,7 @@ DELIVERY_TASK = "business_assistant.background.deliver_notifications"
 HOLD_TASK = "business_assistant.background.expire_holds"
 RETENTION_TASK = "business_assistant.background.execute_retention"
 REINDEX_TASK = "business_assistant.background.reindex_knowledge"
+_WORKER_METRICS = PrometheusMetrics()
 
 
 class _UnusedGateway:
@@ -113,16 +125,24 @@ async def _execute(
     )
     factory = create_session_factory(engine)
     started = datetime.now(UTC)
-    try:
-        processed = await operation(settings, factory)
-    except Exception:
-        await _record(factory, task_name, "failed", 0, "worker.unexpected", started)
-        raise
-    else:
-        await _record(factory, task_name, "success", processed, None, started)
-        return processed
-    finally:
-        await engine.dispose()
+    timer = monotonic()
+    with correlation_scope(None):
+        try:
+            processed = await operation(settings, factory)
+        except Exception:
+            await _record(factory, task_name, "failed", 0, "worker.unexpected", started)
+            _WORKER_METRICS.observe(
+                Component.CELERY, Operation.TASK, Outcome.FAILURE, monotonic() - timer
+            )
+            raise
+        else:
+            await _record(factory, task_name, "success", processed, None, started)
+            _WORKER_METRICS.observe(
+                Component.CELERY, Operation.TASK, Outcome.SUCCESS, monotonic() - timer
+            )
+            return processed
+        finally:
+            await engine.dispose()
 
 
 def _background(
@@ -139,6 +159,7 @@ def _background(
             settings.celery.retry_base_seconds,
             settings.celery.retry_max_seconds,
         ),
+        _WORKER_METRICS,
     )
 
 
@@ -194,7 +215,7 @@ async def _reindex_knowledge(
     from business_assistant.bootstrap.knowledge import build_knowledge_application
 
     async with httpx.AsyncClient() as client:
-        application = build_knowledge_application(settings, factory, client)
+        application = build_knowledge_application(settings, factory, client, _WORKER_METRICS)
         if application is None:
             return 0
         return await application.reindex(limit=settings.celery.batch_size)
@@ -212,6 +233,7 @@ async def _record(
         session.add(
             WorkerRunRow(
                 id=uuid4(),
+                correlation_id=current_correlation_id(),
                 tenant_id=None,
                 task_name=task_name,
                 status=status,

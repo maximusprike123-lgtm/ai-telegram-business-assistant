@@ -34,6 +34,19 @@ def test_valid_development_configuration_groups_settings() -> None:
     assert settings.limits.knowledge_archive_retention_days == 365
     assert settings.celery.batch_size == 100
     assert settings.celery.max_attempts == 6
+    assert not settings.observability.metrics_enabled
+    assert settings.observability.slow_operation_seconds == 1.0
+
+
+def test_enabled_metrics_require_a_dedicated_token_and_bounded_thresholds() -> None:
+    values = valid_environment()
+    values["METRICS_ENABLED"] = "true"
+    with pytest.raises(ConfigurationError, match="METRICS_AUTH_TOKEN"):
+        load_settings(values)
+    values["METRICS_AUTH_TOKEN"] = "local-metrics-token"  # pragma: allowlist secret
+    values["SLOW_OPERATION_SECONDS"] = "0"
+    with pytest.raises(ConfigurationError, match="SLOW_OPERATION_SECONDS"):
+        load_settings(values)
 
 
 def test_notification_delivery_requires_celery_and_telegram() -> None:

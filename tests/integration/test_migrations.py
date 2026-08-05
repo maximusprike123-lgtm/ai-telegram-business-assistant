@@ -95,5 +95,13 @@ async def test_schema_has_required_extensions_tables_and_constraints(
             "ai_telemetry_days",
             "automatic_execution_enabled",
         } <= retention_columns
+        async with engine.connect() as connection:
+            for table in ("outbox_events", "notification_deliveries", "worker_runs"):
+                columns = await connection.run_sync(
+                    lambda sync, name=table: {
+                        item["name"] for item in inspect(sync).get_columns(name)
+                    }
+                )
+                assert "correlation_id" in columns
     finally:
         await engine.dispose()

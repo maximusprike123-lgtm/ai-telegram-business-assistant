@@ -12,6 +12,7 @@ from business_assistant.application.ai import (
     AITextRouter,
     ModelPolicy,
 )
+from business_assistant.application.observability import OperationalMetricsPort
 from business_assistant.config import RuntimeSettings
 from business_assistant.infrastructure.ai import (
     AIProviderRegistry,
@@ -27,6 +28,7 @@ def build_ai_router(
     settings: RuntimeSettings,
     session_factory: async_sessionmaker[AsyncSession],
     client: httpx.AsyncClient | None,
+    metrics: OperationalMetricsPort | None = None,
 ) -> AITextRouter:
     providers = []
     if settings.ai.enabled:
@@ -45,7 +47,7 @@ def build_ai_router(
         providers=AIProviderRegistry(providers),
         prompts=VersionedPromptCatalog(default_prompts()),
         policies=StaticModelPolicyCatalog(policies),
-        telemetry=SQLAlchemyAITelemetryStore(session_factory),
+        telemetry=SQLAlchemyAITelemetryStore(session_factory, metrics),
         business_validator=AdvisoryRoutingValidator(),
     )
     return AITextRouter(runtime)

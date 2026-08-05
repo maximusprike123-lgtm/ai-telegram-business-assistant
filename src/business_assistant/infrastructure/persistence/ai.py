@@ -3,13 +3,24 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from business_assistant.application.ai import AIOperationRecord
+from business_assistant.application.observability import (
+    Component,
+    Operation,
+    OperationalMetricsPort,
+    Outcome,
+)
 
 from .sqlalchemy.models import AIOperationRow
 
 
 class SQLAlchemyAITelemetryStore:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        metrics: OperationalMetricsPort | None = None,
+    ) -> None:
         self._session_factory = session_factory
+        self._metrics = metrics
 
     async def record(self, operation: AIOperationRecord) -> None:
         async with self._session_factory() as session, session.begin():
@@ -38,4 +49,11 @@ class SQLAlchemyAITelemetryStore:
                     ),
                     created_at=operation.occurred_at,
                 )
+            )
+        if self._metrics is not None:
+            self._metrics.observe(
+                Component.AI,
+                Operation.EXECUTE,
+                Outcome.SUCCESS if operation.status.value == "success" else Outcome.FAILURE,
+                operation.latency_ms / 1000,
             )

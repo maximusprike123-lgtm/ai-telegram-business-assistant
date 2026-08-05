@@ -115,6 +115,7 @@ class SQLAlchemyBackgroundStore:
                             id=uuid4(),
                             tenant_id=event.tenant_id,
                             event_id=event.event_id,
+                            correlation_id=event.correlation_id,
                             subscription_id=subscription.id,
                             event_type=event.event_type,
                             channel=subscription.channel,
@@ -269,4 +270,5 @@ def _claim(row: NotificationDeliveryRow) -> DeliveryClaim:
         row.recipient_id,
         dict(row.payload),
         row.attempts,
+        row.correlation_id,
     )

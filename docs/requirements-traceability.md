@@ -69,12 +69,13 @@ not acceptance by itself.
 | Specification area | Current baseline | Next enforcement phase |
 |---|---|---:|
 | Clean Architecture (6.4, 7.2) | Architecture import tests and ADR 0002 | Every phase |
-| Tenant isolation (3.3) | Tenant-filtered repositories, composite FKs, integration tests | Every phase |
+| Tenant isolation (3.3) | Tenant-filtered repositories, composite FKs, lifecycle/entitlement access policy, integration tests | Every phase |
 | UTC/IANA time (6.4, 8.2) | Phase 3 tenant-local schedule engine, DST policy, aware API inputs | 5 slots |
 | PostgreSQL/pgvector (7.3, 9) | Tenant-filtered hybrid full-text/cosine retrieval with typed embedding metadata | Index benchmarking |
 | Transactional outbox (7.3) | PostgreSQL-authoritative idempotent projection, leases, retries, and dead letters | Continued hardening |
-| Privacy/logging (15, 17) | Phase 11 constant-event allowlisted logs, bounded metrics, ADR 0004/0012/0014, secret scan | Continued review |
+| Privacy/logging (15, 17) | Constant-event logs, bounded metrics, safe administration audits, ADR 0004/0012/0014/0015, secret scan | Continued review |
 | AI gateway/safety (7.4, 12, 16) | Provider-neutral generation/embedding ports, strict validation, evidence grounding, metadata-only telemetry | Continued evaluation |
 | CI quality baseline (21, 22) | Ruff, mypy, API/unit/PostgreSQL tests, coverage, build, secret scan | Expanded each phase |
-| Docker/runtime (19) | Explicitly deferred | 12 |
+| Tenant administration | Phase 12 lifecycle, members/RBAC, hashed credentials, entitlements, atomic provisioning | Continued hardening |
+| Docker/runtime (19) | Explicitly deferred by the Phase 12 scope | 13 |
 | Telegram delivery/idempotency (10, 16, 18) | Authenticated webhook, development polling, durable lifecycle, safe callbacks/logs | 10 outbound outbox, 11 hardening |

@@ -67,6 +67,11 @@ Phase 11 adds provider-neutral operational metrics and dependency-health ports. 
 infrastructure adapters emit only bounded dimensions and constant safe events. Correlation crosses
 request and durable-work boundaries without making telemetry authoritative or storing content.
 
+Phase 12 adds an application-owned tenant administration boundary. PostgreSQL stores lifecycle,
+members, hashed credentials, provisioning idempotency, and operational entitlements. Customer
+adapters and workers fail closed for suspended, archived, or disabled tenants while tenant-scoped
+owner recovery remains available through protected administration routes.
+
 ## Decision records
 
 The [ADR index](decisions.md) records binding baseline choices. Later phases may supersede an ADR

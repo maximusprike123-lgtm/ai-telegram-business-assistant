@@ -31,7 +31,7 @@ secrets do not belong in tenant configuration.
 | Controls | upload, retention, rate limits | environment defaults, then tenant policy |
 | Admin bootstrap | local operator token | local demo only |
 
-## Implemented groups through Phase 11
+## Implemented groups through Phase 12
 
 The loader validates application identity and public URL, PostgreSQL connectivity and bounded
 pool settings, internal API bind/timeout settings, tenant-bound API credentials, Telegram,
@@ -61,11 +61,26 @@ five-minute hold, 30-minute draft expiry, and 24-hour cancellation/rescheduling 
 name, phone, and optional-note lengths are also bounded in that record. Real deployments must
 replace and approve these values; `.env.example` does not duplicate them.
 
-The protected API requires `INTERNAL_API_ENABLED=true`, a non-empty `INTERNAL_API_KEY`, a UUID
+The protected API requires `INTERNAL_API_ENABLED=true`, a non-empty compatibility
+`INTERNAL_API_KEY`, a UUID
 `INTERNAL_API_TENANT_ID`, and a supported `INTERNAL_API_ROLE`. The credential resolves exactly
 one trusted principal and tenant; `X-Tenant-ID`, when sent as a defense-in-depth assertion, must
 match that tenant. This static adapter is intentionally replaceable and is not a user directory,
-OAuth server, key rotation system, or complete SaaS identity provider.
+OAuth server or complete SaaS identity provider. Phase 12 additionally accepts database-backed
+tenant credentials issued through the administration API; the static credential remains a
+deployment compatibility fallback and must not be used as a global tenant selector.
+
+## Phase 12 tenant administration
+
+`ADMIN_BOOTSTRAP_TOKEN` enables only the initial provisioning endpoint in local, development, and
+test environments and is rejected in production. Normal administration uses database-backed,
+tenant-bound credentials. Tenant lifecycle, member roles, entitlements, and retention automation
+are PostgreSQL-owned configuration; environment values cannot override them.
+
+New tenants begin suspended. Provisioning creates safe English-only profile/schedule defaults and
+disabled capabilities unless explicitly enabled. `automatic_retention` maps to the existing
+retention policy rather than creating a second authority. Northstar creates demo membership and
+enabled product capabilities without creating or committing a credential.
 
 ## Phase 7 AI runtime
 

@@ -30,7 +30,9 @@ knowledge answers, lead qualification, booking, and human handoff.
   notification delivery, scheduled maintenance/re-indexing, and tenant-scoped worker monitoring
 - Phase 11: privacy-safe structured logging, correlation propagation, low-cardinality Prometheus
   metrics, feature-aware health/readiness, protected diagnostics, and operational runbooks
-- Phases 12–13: not implemented
+- Phase 12: tenant lifecycle, atomic provisioning, tenant members/RBAC, rotating hashed credentials,
+  operational entitlements, suspension enforcement, protected administration API, and audit trails
+- Phase 13: not implemented
 
 The current code is deliberately not a chatbot. Consequential operations belong to validated
 application and domain workflows; future AI output remains advisory until it passes structured,
@@ -126,6 +128,8 @@ Background worker startup, queues, retries, dead letters, schedules, and monitor
 [Phase 10 background delivery runbook](docs/operations/phase-10-background-delivery.md).
 Health, metrics, SLIs, alerts, and privacy-safe failure triage are in the
 [Phase 11 observability runbook](docs/operations/phase-11-observability.md).
+Tenant provisioning, lifecycle recovery, members, credentials, and capabilities are in the
+[Phase 12 administration runbook](docs/operations/phase-12-tenant-administration.md).
 
 ## Repository layout
 
@@ -161,6 +165,7 @@ docs/
 - [Phase 9 traceability](docs/phase-9-traceability.md)
 - [Phase 10 traceability](docs/phase-10-traceability.md)
 - [Phase 11 traceability](docs/phase-11-traceability.md)
+- [Phase 12 traceability](docs/phase-12-traceability.md)
 
 The implementation specification remains the source of truth. Documentation in this repository
 records decisions and implementation status; it does not replace the specification.

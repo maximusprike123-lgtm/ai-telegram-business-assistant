@@ -1,4 +1,4 @@
-# Database runbook through Phase 9
+# Database runbook through Phase 12
 
 Phase 2 supports PostgreSQL only. Use a disposable database for tests; migration tests remove and
 recreate the application schema. The database role needs permission to create the `vector` and
@@ -41,6 +41,10 @@ Revision `0008_phase9` creates one versioned retention policy per tenant and imm
 privacy-action records. It backfills policies for existing tenants with fictional baseline values;
 new tenant provisioning must create a policy explicitly. The revision does not delete or anonymize
 business data during migration.
+Revision `0011_phase12` replaces inactive tenant state with suspended/archived lifecycle state and
+adds tenant members, hashed administrative credentials, operational entitlements, and provisioning
+idempotency records. Existing tenants receive a migration owner placeholder and enabled capabilities
+to preserve behavior. The revision is reversible; archived tenants map to inactive on downgrade.
 
 ## Seed the fictional demo
 
@@ -64,8 +68,9 @@ score, and structured vehicle-safety routing rules. It does not configure real n
 recipients or approved production emergency policy.
 It publishes one English fictional same-day-repair FAQ without making a guarantee. The seed has no
 provider credential, so this fixed FAQ is lexical-only; application-ingested sources carry vectors.
-It also creates one fictional version-1 retention policy and does not overwrite an operator-updated
-policy when the seed is rerun.
+It also creates one fictional version-1 retention policy, deterministic demo owner membership, and
+enabled product entitlements. It does not create an administrative credential and does not
+overwrite an operator-updated policy when rerun.
 
 ## Test
 
@@ -75,4 +80,4 @@ pytest
 ```
 
 CI provisions the pinned `pgvector/pgvector:0.8.2-pg18-trixie` service. Project Dockerfiles and
-Compose remain deferred to Phase 12.
+Compose remain deferred to Phase 13.

@@ -140,6 +140,8 @@ Production deployment, rollback, capacity, and recovery procedures are in the
 [Phase 13 deployment runbook](docs/operations/phase-13-deployment.md) and
 [recovery runbook](docs/operations/phase-13-recovery.md). Promotion is governed by the
 [release checklist](docs/operations/release-checklist.md).
+The [Phase 13 evidence record](docs/phase-13-release-evidence.md) lists exact local results and
+separates them from production-owner validation still required.
 
 ## Repository layout
 

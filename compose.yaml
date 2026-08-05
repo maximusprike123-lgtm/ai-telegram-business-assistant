@@ -1,0 +1,79 @@
+name: business-assistant
+
+x-app: &app
+  build:
+    context: .
+  image: business-assistant:${APP_IMAGE_TAG:-0.2.0rc1}
+  env_file: ${APP_ENV_FILE:-.env.production}
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.2-pg18-trixie
+    env_file: ${APP_ENV_FILE:-.env.production}
+    environment:
+      POSTGRES_DB: business_assistant
+      POSTGRES_USER: app
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d business_assistant"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4.2-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    ports:
+      - "127.0.0.1:${API_PUBLISHED_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    stop_grace_period: 30s
+
+  worker:
+    <<: *app
+    command: ["business-assistant-worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    stop_grace_period: 60s
+
+  beat:
+    <<: *app
+    command: ["business-assistant-beat"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    stop_grace_period: 30s
+
+volumes:
+  postgres-data:
+  redis-data:

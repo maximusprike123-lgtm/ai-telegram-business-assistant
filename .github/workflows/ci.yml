@@ -61,6 +61,12 @@ jobs:
       - name: Scan tracked files for secrets
         run: detect-secrets-hook --baseline .secrets.baseline $(git ls-files)
 
+      - name: Check repository hygiene
+        run: python scripts/repository_hygiene.py
+
+      - name: Audit locked runtime dependencies
+        run: pip-audit --requirement requirements.lock
+
       - name: Ruff lint
         run: ruff check .
 
@@ -78,3 +84,20 @@ jobs:
 
       - name: Build wheel and source distribution
         run: python -m build --no-isolation
+
+      - name: Run representative release smoke matrix
+        run: python scripts/release_smoke.py
+
+  container:
+    name: Production container gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Validate Compose model
+        run: APP_ENV_FILE=.env.production.example docker compose --env-file .env.production.example config --quiet
+      - name: Build production image
+        run: docker build --tag business-assistant:ci .

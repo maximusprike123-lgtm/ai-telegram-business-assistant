@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
@@ -16,4 +17,3 @@ build/
 coverage.xml
 dist/
 htmlcov/
-

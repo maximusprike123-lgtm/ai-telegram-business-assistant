@@ -169,6 +169,12 @@ class CeleryConfig:
     broker_url: str | None
     results_enabled: bool
     result_backend_url: str | None
+    notification_delivery_enabled: bool
+    batch_size: int
+    lease_seconds: int
+    max_attempts: int
+    retry_base_seconds: int
+    retry_max_seconds: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -374,6 +380,17 @@ def load_settings(environ: Mapping[str, str] | None = None) -> RuntimeSettings:
     redis_enabled = _boolean(values, "REDIS_ENABLED", False)
     celery_enabled = _boolean(values, "CELERY_ENABLED", False)
     celery_results_enabled = _boolean(values, "CELERY_RESULTS_ENABLED", False)
+    notification_delivery_enabled = _boolean(values, "NOTIFICATION_DELIVERY_ENABLED", False)
+    if notification_delivery_enabled and (not celery_enabled or not telegram_enabled):
+        raise ConfigurationError(
+            "NOTIFICATION_DELIVERY_ENABLED", "requires Celery and Telegram to be enabled"
+        )
+    retry_base_seconds = _integer(values, "NOTIFICATION_RETRY_BASE_SECONDS", 5, 1, 3600)
+    retry_max_seconds = _integer(values, "NOTIFICATION_RETRY_MAX_SECONDS", 900, 1, 86400)
+    if retry_base_seconds > retry_max_seconds:
+        raise ConfigurationError(
+            "NOTIFICATION_RETRY_BASE_SECONDS", "cannot exceed the maximum retry delay"
+        )
     openai_enabled = _boolean(values, "OPENAI_ENABLED", False)
     legacy_ai_enabled = _boolean(values, "FEATURE_AI_ENABLED", False)
     ai_enabled = _boolean(values, "AI_ENABLED", legacy_ai_enabled)
@@ -518,6 +535,12 @@ def load_settings(environ: Mapping[str, str] | None = None) -> RuntimeSettings:
                 schemes=frozenset({"redis", "rediss", "db+postgresql"}),
                 required=celery_enabled and celery_results_enabled,
             ),
+            notification_delivery_enabled,
+            _integer(values, "WORKER_BATCH_SIZE", 100, 1, 1000),
+            _integer(values, "WORKER_LEASE_SECONDS", 60, 5, 3600),
+            _integer(values, "NOTIFICATION_MAX_ATTEMPTS", 6, 1, 20),
+            retry_base_seconds,
+            retry_max_seconds,
         ),
         openai=OpenAIConfig(
             openai_enabled,

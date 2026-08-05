@@ -54,6 +54,14 @@ class PreparedKnowledgeDocument:
 
 
 @dataclass(frozen=True, slots=True)
+class KnowledgeReindexCandidate:
+    id: UUID
+    tenant_id: TenantId
+    text: str
+    checksum: str
+
+
+@dataclass(frozen=True, slots=True)
 class KnowledgeDocumentView:
     id: DocumentId
     title: str

@@ -328,6 +328,7 @@ async def seed_northstar(database_url: str, app_env: str) -> None:
                     workflow_records_days=730,
                     knowledge_archive_days=365,
                     ai_telemetry_days=90,
+                    automatic_execution_enabled=False,
                 )
                 .on_conflict_do_nothing(index_elements=["tenant_id"])
             )

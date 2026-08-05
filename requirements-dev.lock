@@ -16,6 +16,8 @@ aiosignal==1.4.0
     # via aiohttp
 alembic==1.18.5
     # via ai-telegram-business-assistant (pyproject.toml)
+amqp==5.3.1
+    # via kombu
 annotated-doc==0.0.5
     # via fastapi
 annotated-types==0.8.0
@@ -28,7 +30,11 @@ asyncpg==0.31.0
     # via ai-telegram-business-assistant (pyproject.toml)
 attrs==26.1.0
     # via aiohttp
+billiard==4.2.4
+    # via celery
 build==1.5.0
+    # via ai-telegram-business-assistant (pyproject.toml)
+celery==5.6.3
     # via ai-telegram-business-assistant (pyproject.toml)
 certifi==2026.7.22
     # via
@@ -41,7 +47,18 @@ cfgv==3.5.0
 charset-normalizer==3.4.9
     # via requests
 click==8.4.2
-    # via uvicorn
+    # via
+    #   celery
+    #   click-didyoumean
+    #   click-plugins
+    #   click-repl
+    #   uvicorn
+click-didyoumean==0.3.1
+    # via celery
+click-plugins==1.1.1.2
+    # via celery
+click-repl==0.3.0
+    # via celery
 coverage==7.15.3
     # via pytest-cov
 detect-secrets==1.5.0
@@ -82,6 +99,8 @@ idna==3.18
     #   yarl
 iniconfig==2.3.0
     # via pytest
+kombu==5.6.2
+    # via celery
 librt==0.13.0
     # via mypy
 magic-filter==1.0.12
@@ -104,6 +123,7 @@ packaging==26.2
     # via
     #   build
     #   hatchling
+    #   kombu
     #   pytest
 pathspec==1.1.1
     # via
@@ -120,6 +140,8 @@ pluggy==1.6.0
     #   pytest-cov
 pre-commit==4.6.1
     # via ai-telegram-business-assistant (pyproject.toml)
+prompt-toolkit==3.0.53
+    # via click-repl
 propcache==0.5.2
     # via
     #   aiohttp
@@ -143,16 +165,22 @@ pytest-asyncio==1.4.0
     # via ai-telegram-business-assistant (pyproject.toml)
 pytest-cov==6.3.0
     # via ai-telegram-business-assistant (pyproject.toml)
+python-dateutil==2.9.0.post0
+    # via celery
 python-discovery==1.5.1
     # via virtualenv
 pyyaml==6.0.3
     # via
     #   detect-secrets
     #   pre-commit
+redis==6.4.0
+    # via kombu
 requests==2.34.2
     # via detect-secrets
 ruff==0.16.1
     # via ai-telegram-business-assistant (pyproject.toml)
+six==1.17.0
+    # via python-dateutil
 sqlalchemy==2.0.51
     # via
     #   ai-telegram-business-assistant (pyproject.toml)
@@ -176,11 +204,22 @@ typing-inspection==0.4.2
     # via
     #   fastapi
     #   pydantic
+tzdata==2026.3
+    # via kombu
+tzlocal==5.4.4
+    # via celery
 urllib3==2.7.0
     # via requests
 uvicorn==0.52.1
     # via ai-telegram-business-assistant (pyproject.toml)
+vine==5.1.0
+    # via
+    #   amqp
+    #   celery
+    #   kombu
 virtualenv==21.7.1
     # via pre-commit
+wcwidth==0.8.2
+    # via prompt-toolkit
 yarl==1.24.5
     # via aiohttp

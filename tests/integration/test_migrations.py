@@ -64,6 +64,9 @@ async def test_schema_has_required_extensions_tables_and_constraints(
             "ai_operations",
             "retention_policies",
             "privacy_actions",
+            "notification_subscriptions",
+            "notification_deliveries",
+            "worker_runs",
         } <= tables
         assert exclusion == 1
         async with engine.connect() as connection:
@@ -90,6 +93,7 @@ async def test_schema_has_required_extensions_tables_and_constraints(
             "workflow_records_days",
             "knowledge_archive_days",
             "ai_telemetry_days",
+            "automatic_execution_enabled",
         } <= retention_columns
     finally:
         await engine.dispose()

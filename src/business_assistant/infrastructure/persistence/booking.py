@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 from datetime import date, datetime, timedelta
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import IntegrityError
@@ -49,6 +49,7 @@ from .sqlalchemy.models import (
     BookingStatusHistoryRow,
     BusinessScheduleRow,
     ConversationRow,
+    OutboxEventRow,
     ResourceRow,
     ResourceUnavailabilityRow,
     ScheduleIntervalRow,
@@ -58,6 +59,38 @@ from .sqlalchemy.models import (
     SlotHoldRow,
     TenantRow,
 )
+
+
+def _booking_event(
+    session: AsyncSession,
+    tenant_id: TenantId,
+    booking: BookingRow,
+    event_type: str,
+    key: str,
+    now: datetime,
+) -> None:
+    event_id = uuid5(NAMESPACE_URL, f"business-assistant:{tenant_id}:{key}")
+    session.add(
+        OutboxEventRow(
+            id=event_id,
+            event_id=event_id,
+            tenant_id=tenant_id.value,
+            aggregate_type="booking",
+            aggregate_id=booking.id,
+            event_type=event_type,
+            event_version=1,
+            payload={
+                "booking_id": str(booking.id),
+                "public_reference": booking.public_reference,
+                "service_id": str(booking.service_id),
+                "start_at": booking.start_at.isoformat(),
+            },
+            status="pending",
+            attempts=0,
+            available_at=now,
+            occurred_at=now,
+        )
+    )
 
 
 def _policy(row: BookingPolicyRow) -> BookingPolicy:
@@ -847,6 +880,14 @@ class SQLAlchemyBookingStore:
                         "price_max_minor": service.price_max_minor,
                         "currency": service.currency,
                     }
+                    _booking_event(
+                        session,
+                        tenant_id,
+                        booking,
+                        "booking.rescheduled",
+                        f"booking:rescheduled:{booking.id}:{sequence}",
+                        now,
+                    )
                 else:
                     booking_id = uuid4()
                     reference = f"NSA-{booking_id.hex[:8].upper()}"
@@ -906,6 +947,14 @@ class SQLAlchemyBookingStore:
                                 reason="explicit_confirmation",
                             ),
                         ]
+                    )
+                    _booking_event(
+                        session,
+                        tenant_id,
+                        booking,
+                        "booking.confirmed",
+                        f"booking:confirmed:{booking.id}",
+                        now,
                     )
                 hold.status = "consumed"
                 draft.status = "confirmed"
@@ -1002,6 +1051,14 @@ class SQLAlchemyBookingStore:
                     actor="customer",
                     reason="customer_cancelled",
                 )
+            )
+            _booking_event(
+                session,
+                tenant_id,
+                booking,
+                "booking.cancelled",
+                f"booking:cancelled:{booking.id}",
+                now,
             )
             await session.flush()
             return await self._result(session, booking)

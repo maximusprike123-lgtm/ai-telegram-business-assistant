@@ -5,6 +5,11 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 from tests.helpers_phase3 import api_services, phase3_fixture
 
+from business_assistant.application.background import (
+    NotificationChannel,
+    NotificationSubscription,
+    WorkerHealth,
+)
 from business_assistant.application.bookings import (
     AvailabilityContext,
     AvailableResource,
@@ -360,3 +365,43 @@ def test_phase9_privacy_endpoints_are_owner_controlled_tenant_derived_and_docume
         "/api/v1/privacy/retention-policy", headers=headers
     )
     assert denied.status_code == 403
+
+
+def test_phase10_operations_endpoints_are_tenant_derived_and_documented() -> None:
+    uow, principal, clock, key = phase3_fixture()
+    principal = Principal(principal.subject, principal.tenant_id, Role.MANAGER)
+    subscriptions: list[NotificationSubscription] = []
+
+    class BackgroundFixture:
+        async def create_subscription(self, actor, *, recipient_id, event_types):
+            item = NotificationSubscription(
+                uuid4(), actor.tenant_id, NotificationChannel.TELEGRAM, recipient_id, event_types
+            )
+            subscriptions.append(item)
+            return item
+
+        async def list_subscriptions(self, actor):
+            return tuple(item for item in subscriptions if item.tenant_id == actor.tenant_id)
+
+        async def worker_health(self, actor):
+            return WorkerHealth(1, 2, 0, 3, clock.now(), None)
+
+    services = replace(
+        api_services(uow, principal, clock, key),
+        background=BackgroundFixture(),  # type: ignore[arg-type]
+    )
+    api = TestClient(create_phase3_app(services))
+    headers = {"X-Internal-API-Key": key}
+    created = api.post(
+        "/api/v1/notifications/subscriptions",
+        headers=headers,
+        json={"recipient_id": "12345", "event_types": ["lead.qualified"]},
+    )
+    assert created.status_code == 201 and created.json()["channel"] == "telegram"
+    listed = api.get("/api/v1/notifications/subscriptions", headers=headers)
+    assert listed.status_code == 200 and listed.json()[0]["recipient_id"] == "12345"
+    health = api.get("/api/v1/workers/health", headers=headers)
+    assert health.status_code == 200 and health.json()["dead_letters"] == 3
+    schema = api.get("/openapi.json").json()
+    assert "/api/v1/notifications/subscriptions" in schema["paths"]
+    assert "/api/v1/workers/health" in schema["paths"]

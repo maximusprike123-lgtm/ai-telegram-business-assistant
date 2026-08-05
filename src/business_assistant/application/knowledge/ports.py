@@ -8,6 +8,7 @@ from business_assistant.domain.shared import DocumentId, Locale, TenantId
 
 from .models import (
     KnowledgeDocumentView,
+    KnowledgeReindexCandidate,
     PreparedKnowledgeDocument,
     RetrievedKnowledgeChunk,
 )
@@ -22,6 +23,18 @@ class EmbeddingPort(Protocol):
 
 
 class KnowledgeStorePort(Protocol):
+    async def list_reindex_candidates(
+        self, *, embedding_model: str, embedding_dimensions: int, limit: int
+    ) -> tuple[KnowledgeReindexCandidate, ...]: ...
+
+    async def update_embedding(
+        self,
+        candidate: KnowledgeReindexCandidate,
+        embedding: Sequence[float],
+        *,
+        embedding_model: str,
+    ) -> bool: ...
+
     async def find_by_checksum(
         self, tenant_id: TenantId, checksum: str
     ) -> KnowledgeDocumentView | None: ...

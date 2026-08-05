@@ -67,6 +67,7 @@ async def test_northstar_seed_is_complete_and_idempotent(
         retention_policy_count = await session.scalar(
             select(func.count()).select_from(RetentionPolicyRow)
         )
+        retention_policy = await session.scalar(select(RetentionPolicyRow))
     assert tenant is not None
     assert category is not None
     assert profile is not None
@@ -95,6 +96,7 @@ async def test_northstar_seed_is_complete_and_idempotent(
     assert knowledge_document_count == 1
     assert knowledge_chunk_count == 1
     assert retention_policy_count == 1
+    assert retention_policy is not None and not retention_policy.automatic_execution_enabled
     assert {service.price.mode.value for service in services} == {
         "exact",
         "starting_from",

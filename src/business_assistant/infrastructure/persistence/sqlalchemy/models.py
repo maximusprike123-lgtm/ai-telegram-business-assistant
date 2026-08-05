@@ -1222,6 +1222,9 @@ class RetentionPolicyRow(Base):
     workflow_records_days: Mapped[int] = mapped_column(Integer, nullable=False)
     knowledge_archive_days: Mapped[int] = mapped_column(Integer, nullable=False)
     ai_telemetry_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    automatic_execution_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -1288,7 +1291,7 @@ class OutboxEventRow(Base):
         CheckConstraint("attempts >= 0", name="attempts_nonnegative"),
         CheckConstraint("event_version >= 1", name="event_version_positive"),
         CheckConstraint(
-            "status IN ('pending','processing','published','failed')", name="status_allowed"
+            "status IN ('pending','processing','published','dead_letter')", name="status_allowed"
         ),
         Index(
             "ix_outbox_events_tenant_pending",
@@ -1314,4 +1317,93 @@ class OutboxEventRow(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(64))
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class NotificationSubscriptionRow(Base):
+    __tablename__ = "notification_subscriptions"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id"),
+        UniqueConstraint("tenant_id", "channel", "recipient_id"),
+        CheckConstraint("channel = 'telegram'", name="channel_allowed"),
+        Index("ix_notification_subscriptions_tenant_enabled", "tenant_id", "enabled"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    channel: Mapped[str] = mapped_column(String(32), nullable=False)
+    recipient_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    event_types: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class NotificationDeliveryRow(Base):
+    __tablename__ = "notification_deliveries"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "subscription_id"],
+            ["notification_subscriptions.tenant_id", "notification_subscriptions.id"],
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("tenant_id", "event_id", "subscription_id"),
+        CheckConstraint("attempts >= 0", name="attempts_nonnegative"),
+        CheckConstraint(
+            "status IN ('pending','processing','sent','dead_letter')", name="status_allowed"
+        ),
+        Index(
+            "ix_notification_deliveries_due",
+            "available_at",
+            postgresql_where=text("status = 'pending'"),
+        ),
+        Index("ix_notification_deliveries_tenant_status", "tenant_id", "status"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    event_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    subscription_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    channel: Mapped[str] = mapped_column(String(32), nullable=False)
+    recipient_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class WorkerRunRow(Base):
+    __tablename__ = "worker_runs"
+    __table_args__ = (
+        CheckConstraint("status IN ('success','failed')", name="status_allowed"),
+        CheckConstraint("processed_count >= 0", name="processed_count_nonnegative"),
+        Index("ix_worker_runs_tenant_task_finished", "tenant_id", "task_name", "finished_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT")
+    )
+    task_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    processed_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

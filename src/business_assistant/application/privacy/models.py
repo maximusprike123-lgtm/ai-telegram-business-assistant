@@ -42,6 +42,7 @@ class RetentionPolicy:
     workflow_records_days: int
     knowledge_archive_days: int
     ai_telemetry_days: int
+    automatic_execution_enabled: bool = False
 
     def __post_init__(self) -> None:
         if self.version < 1:

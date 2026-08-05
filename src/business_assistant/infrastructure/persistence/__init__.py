@@ -1,6 +1,7 @@
 """PostgreSQL persistence adapters."""
 
 from .ai import SQLAlchemyAITelemetryStore
+from .background import SQLAlchemyBackgroundStore
 from .booking import SQLAlchemyBookingStore
 from .knowledge import SQLAlchemyKnowledgeStore
 from .privacy import SQLAlchemyPrivacyStore
@@ -11,6 +12,7 @@ from .telegram import SQLAlchemyTelegramIdentityStore, SQLAlchemyTelegramUpdateS
 
 __all__ = [
     "SQLAlchemyAITelemetryStore",
+    "SQLAlchemyBackgroundStore",
     "SQLAlchemyBookingStore",
     "SQLAlchemyHandoffStore",
     "SQLAlchemyKnowledgeStore",

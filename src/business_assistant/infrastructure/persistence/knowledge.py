@@ -5,14 +5,16 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from business_assistant.application.common.errors import KnowledgeError
 from business_assistant.application.knowledge import (
     KnowledgeDocumentView,
+    KnowledgeReindexCandidate,
     KnowledgeSourceType,
     PreparedKnowledgeDocument,
     RetrievedKnowledgeChunk,
@@ -49,6 +51,60 @@ _LEXICAL_STOP_WORDS = frozenset(
 class SQLAlchemyKnowledgeStore:
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
+
+    async def list_reindex_candidates(
+        self, *, embedding_model: str, embedding_dimensions: int, limit: int
+    ) -> tuple[KnowledgeReindexCandidate, ...]:
+        async with self._session_factory() as session:
+            rows = (
+                await session.scalars(
+                    select(KnowledgeChunkRow)
+                    .join(
+                        KnowledgeDocumentRow,
+                        (KnowledgeDocumentRow.tenant_id == KnowledgeChunkRow.tenant_id)
+                        & (KnowledgeDocumentRow.id == KnowledgeChunkRow.document_id)
+                        & (KnowledgeDocumentRow.version == KnowledgeChunkRow.document_version),
+                    )
+                    .where(
+                        KnowledgeDocumentRow.status == "ready",
+                        KnowledgeChunkRow.instruction_risk.is_(False),
+                        or_(
+                            KnowledgeChunkRow.embedding.is_(None),
+                            KnowledgeChunkRow.embedding_model != embedding_model,
+                            KnowledgeChunkRow.embedding_dimensions != embedding_dimensions,
+                        ),
+                    )
+                    .order_by(KnowledgeChunkRow.tenant_id, KnowledgeChunkRow.id)
+                    .limit(limit)
+                )
+            ).all()
+        return tuple(
+            KnowledgeReindexCandidate(row.id, TenantId(row.tenant_id), row.chunk_text, row.checksum)
+            for row in rows
+        )
+
+    async def update_embedding(
+        self,
+        candidate: KnowledgeReindexCandidate,
+        embedding: Sequence[float],
+        *,
+        embedding_model: str,
+    ) -> bool:
+        async with self._session_factory() as session, session.begin():
+            result = await session.execute(
+                update(KnowledgeChunkRow)
+                .where(
+                    KnowledgeChunkRow.tenant_id == candidate.tenant_id.value,
+                    KnowledgeChunkRow.id == candidate.id,
+                    KnowledgeChunkRow.checksum == candidate.checksum,
+                )
+                .values(
+                    embedding=list(embedding),
+                    embedding_model=embedding_model,
+                    embedding_dimensions=len(embedding),
+                )
+            )
+            return bool(cast(CursorResult[Any], result).rowcount)
 
     async def find_by_checksum(
         self, tenant_id: TenantId, checksum: str

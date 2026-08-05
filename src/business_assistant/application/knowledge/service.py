@@ -170,6 +170,31 @@ class KnowledgeApplication:
         answer = _extractive_answer(evidence, self._policy.maximum_answer_characters)
         return KnowledgeAnswer(True, answer, evidence)
 
+    async def reindex(self, *, limit: int = 100) -> int:
+        if not 1 <= limit <= 1000:
+            raise KnowledgeError("Knowledge re-index batch size is invalid")
+        candidates = await self._store.list_reindex_candidates(
+            embedding_model=self._policy.embedding_model,
+            embedding_dimensions=self._policy.embedding_dimensions,
+            limit=limit,
+        )
+        if not candidates:
+            return 0
+        vectors = await self._embeddings.embed(
+            tuple(item.text for item in candidates),
+            model=self._policy.embedding_model,
+            dimensions=self._policy.embedding_dimensions,
+        )
+        _validate_embeddings(vectors, len(candidates), self._policy.embedding_dimensions)
+        updated = 0
+        for candidate, vector in zip(candidates, vectors, strict=True):
+            updated += int(
+                await self._store.update_embedding(
+                    candidate, vector, embedding_model=self._policy.embedding_model
+                )
+            )
+        return updated
+
     async def _ingest(
         self,
         principal: Principal,

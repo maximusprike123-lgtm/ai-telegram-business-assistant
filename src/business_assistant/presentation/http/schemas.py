@@ -262,6 +262,7 @@ class RetentionPolicyUpdate(BaseModel):
     workflow_records_days: int = Field(ge=1, le=3650)
     knowledge_archive_days: int = Field(ge=1, le=3650)
     ai_telemetry_days: int = Field(ge=1, le=3650)
+    automatic_execution_enabled: bool = False
 
 
 class RetentionPolicyResponse(BaseModel):
@@ -272,6 +273,7 @@ class RetentionPolicyResponse(BaseModel):
     workflow_records_days: int
     knowledge_archive_days: int
     ai_telemetry_days: int
+    automatic_execution_enabled: bool
 
 
 class PrivacyExecutionRequest(BaseModel):
@@ -281,6 +283,28 @@ class PrivacyExecutionRequest(BaseModel):
 
 class CustomerAnonymizationRequest(PrivacyExecutionRequest):
     reason_code: str = Field(min_length=1, max_length=100)
+
+
+class NotificationSubscriptionCreate(BaseModel):
+    recipient_id: str = Field(pattern=r"^[0-9]{1,100}$")
+    event_types: frozenset[str] = Field(min_length=1, max_length=10)
+
+
+class NotificationSubscriptionResponse(BaseModel):
+    id: str
+    channel: str
+    recipient_id: str
+    event_types: frozenset[str]
+    enabled: bool
+
+
+class WorkerHealthResponse(BaseModel):
+    pending_outbox: int
+    pending_notifications: int
+    processing_notifications: int
+    dead_letters: int
+    oldest_due_at: datetime | None
+    last_success_at: datetime | None
 
 
 class PrivacyResultResponse(BaseModel):

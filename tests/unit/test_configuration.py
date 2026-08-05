@@ -32,6 +32,23 @@ def test_valid_development_configuration_groups_settings() -> None:
     assert settings.limits.customer_contact_retention_days == 365
     assert settings.limits.workflow_retention_days == 730
     assert settings.limits.knowledge_archive_retention_days == 365
+    assert settings.celery.batch_size == 100
+    assert settings.celery.max_attempts == 6
+
+
+def test_notification_delivery_requires_celery_and_telegram() -> None:
+    values = valid_environment()
+    values["NOTIFICATION_DELIVERY_ENABLED"] = "true"
+    with pytest.raises(ConfigurationError, match="NOTIFICATION_DELIVERY_ENABLED"):
+        load_settings(values)
+
+
+def test_notification_retry_delay_is_ordered() -> None:
+    values = valid_environment()
+    values["NOTIFICATION_RETRY_BASE_SECONDS"] = "20"
+    values["NOTIFICATION_RETRY_MAX_SECONDS"] = "10"
+    with pytest.raises(ConfigurationError, match="NOTIFICATION_RETRY_BASE_SECONDS"):
+        load_settings(values)
 
 
 @pytest.mark.parametrize(

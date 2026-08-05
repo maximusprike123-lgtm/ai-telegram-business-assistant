@@ -36,6 +36,7 @@ from business_assistant.infrastructure.persistence.sqlalchemy.models import (
     BookingDraftRow,
     BookingRow,
     BookingStatusHistoryRow,
+    OutboxEventRow,
     ServiceResourceRow,
     SlotHoldRow,
 )
@@ -163,6 +164,19 @@ async def test_hold_confirm_cancel_and_history_are_durable_and_idempotent(
     assert (await store.booking_history(owner.tenant_id, owner.customer_id, booking.id))[-1][
         :2
     ] == ("confirmed", "cancelled")
+    async with factory() as session:
+        events = list(
+            (
+                await session.scalars(
+                    select(OutboxEventRow).order_by(OutboxEventRow.occurred_at, OutboxEventRow.id)
+                )
+            ).all()
+        )
+    assert {item.event_type for item in events} == {
+        "booking.confirmed",
+        "booking.cancelled",
+    }
+    assert all("phone" not in item.payload and "name" not in item.payload for item in events)
 
 
 @pytest.mark.asyncio

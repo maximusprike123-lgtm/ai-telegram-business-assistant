@@ -10,6 +10,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
 
+from business_assistant.application.background import (
+    BackgroundApplication,
+    NotificationSubscription,
+)
 from business_assistant.application.bookings import AvailableSlot, BookingApplication
 from business_assistant.application.catalog import (
     GetService,
@@ -79,6 +83,8 @@ from .schemas import (
     KnowledgeDocumentResponse,
     MarkdownKnowledgeCreate,
     NextOpeningResponse,
+    NotificationSubscriptionCreate,
+    NotificationSubscriptionResponse,
     PrivacyExecutionRequest,
     PrivacyResultResponse,
     QualificationSchemaCreate,
@@ -87,6 +93,7 @@ from .schemas import (
     RetentionPolicyUpdate,
     ServiceResponse,
     TenantProfileResponse,
+    WorkerHealthResponse,
 )
 
 
@@ -105,6 +112,7 @@ class Phase3ApiServices:
     handoffs: HandoffApplication | None = None
     knowledge: KnowledgeApplication | None = None
     privacy: PrivacyApplication | None = None
+    background: BackgroundApplication | None = None
 
 
 def _schema_response(schema: QualificationSchema) -> QualificationSchemaResponse:
@@ -174,6 +182,7 @@ def _retention_policy_response(policy: RetentionPolicy) -> RetentionPolicyRespon
         workflow_records_days=policy.workflow_records_days,
         knowledge_archive_days=policy.knowledge_archive_days,
         ai_telemetry_days=policy.ai_telemetry_days,
+        automatic_execution_enabled=policy.automatic_execution_enabled,
     )
 
 
@@ -185,6 +194,18 @@ def _privacy_result_response(result: PrivacyResult) -> PrivacyResultResponse:
         policy_version=result.policy_version,
         counts=dict(result.counts),
         idempotent_replay=result.idempotent_replay,
+    )
+
+
+def _subscription_response(
+    subscription: NotificationSubscription,
+) -> NotificationSubscriptionResponse:
+    return NotificationSubscriptionResponse(
+        id=str(subscription.id),
+        channel=subscription.channel.value,
+        recipient_id=subscription.recipient_id,
+        event_types=subscription.event_types,
+        enabled=subscription.enabled,
     )
 
 
@@ -724,6 +745,7 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
                 request.workflow_records_days,
                 request.knowledge_archive_days,
                 request.ai_telemetry_days,
+                request.automatic_execution_enabled,
             )
             return _retention_policy_response(
                 await privacy_application.update_policy(
@@ -782,6 +804,55 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
                     confirmed=request.confirmed,
                     idempotency_key=request.idempotency_key,
                 )
+            )
+
+    background_application = services.background
+    if background_application is not None:
+
+        @app.get(
+            "/api/v1/notifications/subscriptions",
+            response_model=tuple[NotificationSubscriptionResponse, ...],
+            tags=["Operations"],
+            responses=error_responses,
+        )
+        async def list_notification_subscriptions(
+            principal: PrincipalDependency,
+        ) -> tuple[NotificationSubscriptionResponse, ...]:
+            return tuple(
+                _subscription_response(item)
+                for item in await background_application.list_subscriptions(principal)
+            )
+
+        @app.post(
+            "/api/v1/notifications/subscriptions",
+            response_model=NotificationSubscriptionResponse,
+            status_code=201,
+            tags=["Operations"],
+            responses=error_responses,
+        )
+        async def create_notification_subscription(
+            request: NotificationSubscriptionCreate,
+            principal: PrincipalDependency,
+        ) -> NotificationSubscriptionResponse:
+            return _subscription_response(
+                await background_application.create_subscription(
+                    principal,
+                    recipient_id=request.recipient_id,
+                    event_types=request.event_types,
+                )
+            )
+
+        @app.get(
+            "/api/v1/workers/health",
+            response_model=WorkerHealthResponse,
+            tags=["Operations"],
+            responses=error_responses,
+        )
+        async def get_worker_health(
+            principal: PrincipalDependency,
+        ) -> WorkerHealthResponse:
+            return WorkerHealthResponse.model_validate(
+                asdict(await background_application.worker_health(principal))
             )
 
     return app

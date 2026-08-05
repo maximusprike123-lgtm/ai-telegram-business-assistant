@@ -44,6 +44,34 @@ class SQLAlchemyPrivacyStore:
             row = await session.get(RetentionPolicyRow, tenant_id.value)
             return _policy(row) if row is not None else None
 
+    async def run_scheduled_retention(self, *, at: datetime, limit: int = 100) -> int:
+        """Execute only policies whose owner explicitly opted into automation."""
+        async with self._session_factory() as session:
+            rows = list(
+                (
+                    await session.scalars(
+                        select(RetentionPolicyRow)
+                        .where(RetentionPolicyRow.automatic_execution_enabled.is_(True))
+                        .order_by(RetentionPolicyRow.tenant_id)
+                        .limit(limit)
+                    )
+                ).all()
+            )
+        completed = 0
+        for row in rows:
+            policy = _policy(row)
+            key = f"scheduled-retention:{at.date().isoformat()}:v{policy.version}"
+            await self.run_retention(
+                policy.tenant_id,
+                policy,
+                dry_run=False,
+                idempotency_key=key,
+                actor_id="phase10-worker",
+                at=at,
+            )
+            completed += 1
+        return completed
+
     async def update_policy(
         self,
         policy: RetentionPolicy,
@@ -73,6 +101,7 @@ class SQLAlchemyPrivacyStore:
             row.workflow_records_days = policy.workflow_records_days
             row.knowledge_archive_days = policy.knowledge_archive_days
             row.ai_telemetry_days = policy.ai_telemetry_days
+            row.automatic_execution_enabled = policy.automatic_execution_enabled
             row.version = policy.version
             row.updated_at = at
             session.add(
@@ -233,10 +262,11 @@ def _policy(row: RetentionPolicyRow) -> RetentionPolicy:
         row.workflow_records_days,
         row.knowledge_archive_days,
         row.ai_telemetry_days,
+        row.automatic_execution_enabled,
     )
 
 
-def _policy_values(policy: RetentionPolicy) -> dict[str, int]:
+def _policy_values(policy: RetentionPolicy) -> dict[str, int | bool]:
     return {
         "version": policy.version,
         "operational_metadata_days": policy.operational_metadata_days,
@@ -245,6 +275,7 @@ def _policy_values(policy: RetentionPolicy) -> dict[str, int]:
         "workflow_records_days": policy.workflow_records_days,
         "knowledge_archive_days": policy.knowledge_archive_days,
         "ai_telemetry_days": policy.ai_telemetry_days,
+        "automatic_execution_enabled": policy.automatic_execution_enabled,
     }
 
 

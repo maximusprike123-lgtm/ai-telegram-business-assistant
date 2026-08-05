@@ -4,8 +4,8 @@
 
 - Python 3.12 or newer; CI verifies Python 3.12 and 3.13.
 - Git.
-- PostgreSQL 18 with pgvector and `btree_gist` is required for the integration gate and Phase 8
-  hybrid-retrieval tests.
+- PostgreSQL 18 with pgvector and `btree_gist` is required for the integration gate, Phase 8
+  hybrid-retrieval tests, and Phase 9 retention transaction tests.
 - FastAPI serves the protected business API and authenticated Telegram webhook. aiogram 3 is the
   Telegram presentation adapter. Phase 5 booking and Phase 6 qualification/handoff transactions
   require PostgreSQL. Phase 7 AI tests use an injected HTTP transport and never require provider
@@ -57,6 +57,7 @@ pytest tests/unit/test_ai_runtime.py tests/unit/test_openai_adapter.py \
   tests/integration/test_phase7_ai_telemetry.py
 pytest tests/unit/test_knowledge.py tests/unit/test_openai_embeddings_adapter.py \
   tests/integration/test_phase8_knowledge.py
+pytest tests/unit/test_privacy.py tests/integration/test_phase9_privacy.py
 pytest -m postgresql
 alembic check
 ```
@@ -87,6 +88,8 @@ The [Phase 7 runbook](operations/phase-7-ai-runtime.md) documents the kill switc
 policy, safe fallbacks, metadata-only telemetry, and rollback.
 The [Phase 8 runbook](operations/phase-8-knowledge.md) documents ingestion, publication, retrieval,
 evidence thresholds, model changes, and rollback.
+The [Phase 9 runbook](operations/phase-9-privacy-retention.md) documents data classifications,
+policy approval, safe preview, customer anonymization, retention execution, and limitations.
 
 ## Git hooks
 

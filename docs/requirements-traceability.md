@@ -42,12 +42,12 @@ not acceptance by itself.
 | FR-050 | 3 | Implemented: override precedence, current status, bounded next-open calculation |
 | FR-051 | 3, 4 | Implemented: Telegram renders status, hours, and deterministic next opening |
 | FR-052 | 3, 6 | Implemented: response due time consumes effective tenant business intervals |
-| FR-060 | 4, 9 | Phase 4 stateless navigation/cancel baseline; durable workflow memory remains Phase 9 |
-| FR-061 | 9 | Planned: facts with provenance/confidence/sensitivity |
-| FR-062 | 9 | Planned: confirmation-state enforcement |
-| FR-063 | 9 | Planned: summary authority boundary |
+| FR-060 | 4, future | Phase 4 stateless navigation/cancel baseline; durable workflow memory deferred by approved Phase 9 privacy-only scope |
+| FR-061 | future | Planned: facts with provenance/confidence/sensitivity; excluded from privacy-only Phase 9 |
+| FR-062 | future | Planned: confirmation-state enforcement; excluded from privacy-only Phase 9 |
+| FR-063 | future | Planned: summary authority boundary; excluded from privacy-only Phase 9 |
 | FR-064 | 4, 5, 9 | Implemented for booking: `/cancel` releases active draft/hold without cancelling appointments |
-| FR-065 | 9, 11 | Planned: retention and anonymization workflow |
+| FR-065 | 9, 11 | Implemented: tenant policy, preview, confirmed/idempotent retention execution, customer anonymization, and audit preservation; export/legal-hold/backup controls remain hardening scope |
 | FR-070 | 4, 6 | Implemented: explicit Telegram human request creates/reuses a durable case |
 | FR-071 | 6, 7 | Explicit, unsupported, structured-safety, AI refusal/low-confidence, and unsafe-output handoff fallbacks implemented; repeated-failure policy remains deferred |
 | FR-072 | 2, 6 | Implemented: linked case, priority, safe structured context, summary, status, and due timestamp |
@@ -73,7 +73,7 @@ not acceptance by itself.
 | UTC/IANA time (6.4, 8.2) | Phase 3 tenant-local schedule engine, DST policy, aware API inputs | 5 slots |
 | PostgreSQL/pgvector (7.3, 9) | Tenant-filtered hybrid full-text/cosine retrieval with typed embedding metadata | Index benchmarking |
 | Transactional outbox (7.3) | Tenant-scoped durable schema in same database | 10 delivery |
-| Privacy/logging (15, 17) | ADR 0004, environment policy, secret scan | 9, 11 |
+| Privacy/logging (15, 17) | Phase 9 classification, retention/anonymization, allowlisted logs, ADR 0004/0012, secret scan | 11 hardening |
 | AI gateway/safety (7.4, 12, 16) | Provider-neutral generation/embedding ports, strict validation, evidence grounding, metadata-only telemetry | Continued evaluation |
 | CI quality baseline (21, 22) | Ruff, mypy, API/unit/PostgreSQL tests, coverage, build, secret scan | Expanded each phase |
 | Docker/runtime (19) | Explicitly deferred | 12 |

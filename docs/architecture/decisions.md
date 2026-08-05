@@ -13,3 +13,4 @@
 | [0009](0009-phase-6-qualification-and-handoff-boundary.md) | Accepted | Versioned consent/qualification, deterministic scoring, durable handoff, bot pause, and staff control |
 | [0010](0010-phase-7-provider-neutral-ai-runtime.md) | Accepted | Provider-neutral strict AI runtime, prompt/model policy, telemetry, and deterministic degradation |
 | [0011](0011-phase-8-tenant-scoped-knowledge-retrieval.md) | Accepted | Tenant-scoped ingestion, hybrid retrieval, evidence gating, and citation-backed answers |
+| [0012](0012-phase-9-privacy-retention-and-anonymization.md) | Accepted | Tenant retention policy, safe anonymization, deliberate deletion, and audit preservation |

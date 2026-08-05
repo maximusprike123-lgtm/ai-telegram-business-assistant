@@ -53,6 +53,11 @@ tenant-filtered PostgreSQL lexical/vector search, while the application owns det
 chunking, evidence thresholds, citations, extractive answers, and fallback. Retrieved content is
 untrusted and cannot mutate workflows or bypass publication and tenant filters.
 
+Phase 9 adds `application.privacy` classifications, authorization, confirmation, retention policy,
+and idempotency boundaries. PostgreSQL performs tenant-filtered anonymization and deletion behind a
+port. Booking/audit history and active records are preserved according to policy; the API never
+accepts tenant scope or deletion targets outside the authenticated application command.
+
 ## Decision records
 
 The [ADR index](decisions.md) records binding baseline choices. Later phases may supersede an ADR

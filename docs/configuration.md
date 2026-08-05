@@ -31,7 +31,7 @@ secrets do not belong in tenant configuration.
 | Controls | upload, retention, rate limits | environment defaults, then tenant policy |
 | Admin bootstrap | local operator token | local demo only |
 
-## Implemented groups through Phase 8
+## Implemented groups through Phase 9
 
 The loader validates application identity and public URL, PostgreSQL connectivity and bounded
 pool settings, internal API bind/timeout settings, tenant-bound API credentials, Telegram,
@@ -115,6 +115,18 @@ and overlap, candidate/result limits, a minimum relevance floor, and customer an
 `RAG_RESULT_LIMIT`, `RAG_MIN_RELEVANCE`, and `RAG_MAX_ANSWER_CHARACTERS` bound retrieval and
 evidence presentation. Model names and dimensions remain deployment policy; changing either does
 not silently reuse incompatible vectors.
+
+## Phase 9 privacy and retention
+
+`OPERATIONAL_METADATA_RETENTION_DAYS`, `MESSAGE_RETENTION_DAYS`,
+`CUSTOMER_CONTACT_RETENTION_DAYS`, `WORKFLOW_RETENTION_DAYS`,
+`KNOWLEDGE_ARCHIVE_RETENTION_DAYS`, and `AI_TELEMETRY_RETENTION_DAYS` are bounded provisioning
+defaults. Each accepts 1–3650 days. The versioned tenant `retention_policies` row is authoritative
+for execution and can be changed only through the owner-authorized API with optimistic concurrency.
+
+The Northstar values are fictional examples, not legal policy. Audit/security records are excluded
+from automated Phase 9 deletion. Real deployments must approve legal holds, backup lifecycle,
+exports, jurisdiction, and retention periods before enabling a schedule.
 
 ## Secret handling
 

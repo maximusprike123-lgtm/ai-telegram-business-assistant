@@ -24,7 +24,9 @@ knowledge answers, lead qualification, booking, and human handoff.
   confidence gating, metadata-only telemetry, Responses adapter, and deterministic degradation
 - Phase 8: tenant-scoped Markdown/FAQ ingestion, OpenAI embeddings boundary, pgvector hybrid
   retrieval, publication/effective-date filters, evidence gating, citations, and safe fallback
-- Phases 9–13: not implemented
+- Phase 9: tenant-scoped data classification, versioned retention policies, safe anonymization,
+  deliberate deletion workflows, durable action/audit records, and privacy-safe logging
+- Phases 10–13: not implemented
 
 The current code is deliberately not a chatbot. Consequential operations belong to validated
 application and domain workflows; future AI output remains advisory until it passes structured,
@@ -114,6 +116,8 @@ Provider configuration, safe degradation, privacy, and telemetry operations are 
 [Phase 7 AI runtime runbook](docs/operations/phase-7-ai-runtime.md).
 Knowledge ingestion, publication, hybrid retrieval, citations, and rollback are in the
 [Phase 8 knowledge runbook](docs/operations/phase-8-knowledge.md).
+Data classification, policy approval, preview, anonymization, and retention execution are in the
+[Phase 9 privacy runbook](docs/operations/phase-9-privacy-retention.md).
 
 ## Repository layout
 
@@ -146,6 +150,7 @@ docs/
 - [Phase 6 traceability](docs/phase-6-traceability.md)
 - [Phase 7 traceability](docs/phase-7-traceability.md)
 - [Phase 8 traceability](docs/phase-8-traceability.md)
+- [Phase 9 traceability](docs/phase-9-traceability.md)
 
 The implementation specification remains the source of truth. Documentation in this repository
 records decisions and implementation status; it does not replace the specification.

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from dataclasses import replace
@@ -134,3 +135,30 @@ def test_readiness_fails_without_exposing_exception_details() -> None:
     assert response.status_code == 503
     assert response.json() == {"status": "not_ready"}
     assert api.get("/metrics").status_code == 404
+
+
+def test_http_boundary_rejects_oversize_and_times_out_safely() -> None:
+    uow, principal, clock, key = phase3_fixture()
+    services = replace(
+        api_services(uow, principal, clock, key),
+        max_request_bytes=4,
+        request_timeout_seconds=1,
+    )
+    app = create_phase3_app(services)
+
+    @app.get("/phase13-slow", include_in_schema=False)
+    async def slow() -> dict[str, bool]:
+        await asyncio.sleep(2)
+        return {"completed": True}
+
+    with TestClient(app) as api:
+        oversized = api.post("/missing", content=b"12345")
+        timed_out = api.get("/phase13-slow", headers={"X-Request-ID": "phase13-timeout"})
+    assert oversized.status_code == 413
+    assert oversized.json()["code"] == "request.too_large"
+    assert timed_out.status_code == 504
+    assert timed_out.json() == {
+        "code": "request.timeout",
+        "message": "The request exceeded the processing time limit",
+        "correlation_id": "phase13-timeout",
+    }

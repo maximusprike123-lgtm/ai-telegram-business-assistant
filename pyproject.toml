@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ai-telegram-business-assistant"
-version = "0.1.0"
+version = "0.2.0rc1"
 description = "Controlled, tenant-aware Telegram business assistant with validated workflows"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -29,8 +29,10 @@ dev = [
   "detect-secrets>=1.5,<2",
   "editables>=0.3,<1",
   "hatchling>=1.27,<2",
+  "httpx2>=2.7,<3",
   "mypy>=1.15,<2",
   "pre-commit>=4,<5",
+  "pip-audit>=2.9,<3",
   "pytest>=8.3,<9",
   "pytest-asyncio>=1.2,<2",
   "pytest-cov>=6,<7",

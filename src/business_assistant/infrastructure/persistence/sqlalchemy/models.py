@@ -1335,6 +1335,11 @@ class RetentionPolicyRow(Base):
             "AND ai_telemetry_days BETWEEN 1 AND 3650",
             name="periods_valid",
         ),
+        Index(
+            "ix_retention_policies_automatic_tenant",
+            "tenant_id",
+            postgresql_where=text("automatic_execution_enabled IS TRUE"),
+        ),
     )
 
     tenant_id: Mapped[UUID] = mapped_column(
@@ -1426,6 +1431,18 @@ class OutboxEventRow(Base):
             "available_at",
             postgresql_where=text("status = 'pending'"),
         ),
+        Index(
+            "ix_outbox_events_global_pending",
+            "available_at",
+            "id",
+            postgresql_where=text("status = 'pending'"),
+        ),
+        Index(
+            "ix_outbox_events_global_processing",
+            "locked_at",
+            "id",
+            postgresql_where=text("status = 'processing'"),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
@@ -1493,7 +1510,14 @@ class NotificationDeliveryRow(Base):
         Index(
             "ix_notification_deliveries_due",
             "available_at",
+            "id",
             postgresql_where=text("status = 'pending'"),
+        ),
+        Index(
+            "ix_notification_deliveries_processing",
+            "locked_at",
+            "id",
+            postgresql_where=text("status = 'processing'"),
         ),
         Index("ix_notification_deliveries_tenant_status", "tenant_id", "status"),
     )

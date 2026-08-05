@@ -175,6 +175,8 @@ class CeleryConfig:
     max_attempts: int
     retry_base_seconds: int
     retry_max_seconds: int
+    task_soft_time_limit_seconds: int
+    task_time_limit_seconds: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -472,6 +474,12 @@ def load_settings(environ: Mapping[str, str] | None = None) -> RuntimeSettings:
     admin_token = _secret(values, "ADMIN_BOOTSTRAP_TOKEN", required=False, production=production)
     if production and admin_token is not None:
         raise ConfigurationError("ADMIN_BOOTSTRAP_TOKEN", "is local-development only")
+    worker_soft_limit = _integer(values, "WORKER_TASK_SOFT_TIME_LIMIT_SECONDS", 300, 10, 3600)
+    worker_hard_limit = _integer(values, "WORKER_TASK_TIME_LIMIT_SECONDS", 330, 11, 3660)
+    if worker_hard_limit <= worker_soft_limit:
+        raise ConfigurationError(
+            "WORKER_TASK_TIME_LIMIT_SECONDS", "must exceed the soft task time limit"
+        )
     return RuntimeSettings(
         application=ApplicationConfig(
             environment,
@@ -544,6 +552,8 @@ def load_settings(environ: Mapping[str, str] | None = None) -> RuntimeSettings:
             _integer(values, "NOTIFICATION_MAX_ATTEMPTS", 6, 1, 20),
             retry_base_seconds,
             retry_max_seconds,
+            worker_soft_limit,
+            worker_hard_limit,
         ),
         openai=OpenAIConfig(
             openai_enabled,

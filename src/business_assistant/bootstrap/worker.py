@@ -83,6 +83,9 @@ def create_worker_app(settings: RuntimeSettings | None = None) -> Celery:
         worker_prefetch_multiplier=1,
         task_acks_late=True,
         task_reject_on_worker_lost=True,
+        task_soft_time_limit=runtime.celery.task_soft_time_limit_seconds,
+        task_time_limit=runtime.celery.task_time_limit_seconds,
+        broker_connection_max_retries=10,
     )
 
     @app.task(name=OUTBOX_TASK)  # type: ignore[untyped-decorator]

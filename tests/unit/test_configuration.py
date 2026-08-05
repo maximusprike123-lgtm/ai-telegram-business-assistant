@@ -347,6 +347,18 @@ def test_celery_result_backend_is_conditional() -> None:
         load_settings(values)
 
 
+def test_worker_hard_limit_must_exceed_soft_limit() -> None:
+    values = valid_environment()
+    values.update(
+        {
+            "WORKER_TASK_SOFT_TIME_LIMIT_SECONDS": "60",
+            "WORKER_TASK_TIME_LIMIT_SECONDS": "60",
+        }
+    )
+    with pytest.raises(ConfigurationError, match="WORKER_TASK_TIME_LIMIT_SECONDS"):
+        load_settings(values)
+
+
 def test_production_rejects_sensitive_logging_and_admin_bootstrap() -> None:
     values = valid_environment()
     values.update(

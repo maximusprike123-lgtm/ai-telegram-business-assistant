@@ -1,5 +1,6 @@
 """Thin authenticated Phase 3 FastAPI presentation adapter."""
 
+import asyncio
 import logging
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
@@ -157,6 +158,8 @@ class Phase3ApiServices:
     administration: TenantAdministration | None = None
     tenant_access: TenantAccessPolicy | None = None
     bootstrap_token: str | None = None
+    request_timeout_seconds: int = 15
+    max_request_bytes: int = 10_485_760
 
 
 @dataclass(frozen=True, slots=True)
@@ -416,7 +419,31 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
         with correlation_scope(parse_or_create(request.headers.get("X-Request-ID"))) as value:
             correlation_id = str(value)
             request.state.correlation_id = correlation_id
-            response = await call_next(request)
+            content_length = request.headers.get("content-length")
+            if content_length is not None and (
+                not content_length.isdecimal() or int(content_length) > services.max_request_bytes
+            ):
+                response = JSONResponse(
+                    status_code=413,
+                    content={
+                        "code": "request.too_large",
+                        "message": "Request body exceeds the configured limit",
+                        "correlation_id": correlation_id,
+                    },
+                )
+            else:
+                try:
+                    async with asyncio.timeout(services.request_timeout_seconds):
+                        response = await call_next(request)
+                except TimeoutError:
+                    response = JSONResponse(
+                        status_code=504,
+                        content={
+                            "code": "request.timeout",
+                            "message": "The request exceeded the processing time limit",
+                            "correlation_id": correlation_id,
+                        },
+                    )
             response.headers["X-Request-ID"] = correlation_id
         if operations is not None:
             duration = monotonic() - started

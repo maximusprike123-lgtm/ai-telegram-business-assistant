@@ -127,6 +127,8 @@ def build_phase3_app(settings: RuntimeSettings) -> FastAPI:
         administration=TenantAdministration(administration_store, credential_secrets),
         tenant_access=tenant_access,
         bootstrap_token=security.admin_bootstrap_token,
+        request_timeout_seconds=settings.api.request_timeout_seconds,
+        max_request_bytes=settings.limits.upload_max_bytes,
     )
     app = create_phase3_app(services)
 

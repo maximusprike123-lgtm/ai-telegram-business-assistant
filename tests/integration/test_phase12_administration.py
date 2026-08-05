@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -173,3 +174,26 @@ async def test_provisioning_idempotency_key_cannot_cross_tenants(database) -> No
     await service.provision(request(TenantId(uuid4())))
     with pytest.raises(AdministrationError, match="conflicts"):
         await service.provision(request(TenantId(uuid4())))
+
+
+@pytest.mark.asyncio
+async def test_concurrent_provisioning_has_one_authoritative_result(database) -> None:
+    _, factory = database
+    service = TenantAdministration(
+        SQLAlchemyTenantAdministrationStore(factory), PBKDF2CredentialSecrets()
+    )
+    tenant_id = TenantId(uuid4())
+    request = ProvisionTenant(
+        tenant_id,
+        f"concurrent-{str(tenant_id)[:8]}",
+        "Concurrent Tenant",
+        "UTC",
+        Locale.EN,
+        "owner@example.test",
+        "owner-key",
+        f"provision-{tenant_id}",
+        frozenset(),
+    )
+    results = await asyncio.gather(service.provision(request), service.provision(request))
+    assert sorted(result.created for result in results) == [False, True]
+    assert sum(result.credential.secret is not None for result in results) == 1

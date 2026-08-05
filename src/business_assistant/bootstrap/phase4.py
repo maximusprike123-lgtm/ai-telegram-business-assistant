@@ -298,6 +298,8 @@ def _internal_api_app(
         administration=TenantAdministration(administration_store, credential_secrets),
         tenant_access=SQLAlchemyTenantAccessPolicy(components.session_factory),
         bootstrap_token=security.admin_bootstrap_token,
+        request_timeout_seconds=settings.api.request_timeout_seconds,
+        max_request_bytes=settings.limits.upload_max_bytes,
     )
     return create_phase3_app(services)
 

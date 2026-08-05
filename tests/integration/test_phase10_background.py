@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -138,3 +139,43 @@ async def test_notification_claims_recover_stale_leases_and_record_terminal_stat
             .where(NotificationDeliveryRow.last_error_code == "telegram.forbidden")
         )
     assert count == 1
+
+
+@pytest.mark.asyncio
+async def test_concurrent_notification_claimers_do_not_share_work(
+    postgresql_url: str,
+    database: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
+) -> None:
+    _, factory = database
+    await seed_northstar(postgresql_url, "test")
+    store = SQLAlchemyBackgroundStore(factory)
+    subscription = await store.save_subscription(
+        NotificationSubscription(
+            uuid4(),
+            NORTHSTAR_TENANT_ID,
+            NotificationChannel.TELEGRAM,
+            "130013",
+            frozenset({"handoff.queued"}),
+        )
+    )
+    async with factory() as session, session.begin():
+        session.add(
+            NotificationDeliveryRow(
+                id=uuid4(),
+                tenant_id=NORTHSTAR_TENANT_ID.value,
+                event_id=uuid4(),
+                subscription_id=subscription.id,
+                event_type="handoff.queued",
+                channel="telegram",
+                recipient_id="130013",
+                payload={"priority": "normal"},
+                status="pending",
+                attempts=0,
+                available_at=NOW,
+            )
+        )
+    batches = await asyncio.gather(
+        store.claim_notifications(now=NOW, limit=1, lease_seconds=60),
+        store.claim_notifications(now=NOW, limit=1, lease_seconds=60),
+    )
+    assert sum(len(batch) for batch in batches) == 1

@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FORBIDDEN = ("/Users/", "/home/", "C:\\Users\\")
+FORBIDDEN = ("/" + "Users/", "/" + "home/", "C:" + "\\Users\\")
 
 
 def main() -> int:

@@ -245,3 +245,48 @@ class KnowledgeAnswerResponse(BaseModel):
     text: str
     citations: tuple[KnowledgeCitationResponse, ...]
     fallback_reason: str | None
+
+
+class DataClassificationResponse(BaseModel):
+    data_class: str
+    purpose: str
+    sensitivity: str
+    retention_action: str
+
+
+class RetentionPolicyUpdate(BaseModel):
+    expected_version: int = Field(ge=1)
+    operational_metadata_days: int = Field(ge=1, le=3650)
+    message_content_days: int = Field(ge=1, le=3650)
+    customer_contact_days: int = Field(ge=1, le=3650)
+    workflow_records_days: int = Field(ge=1, le=3650)
+    knowledge_archive_days: int = Field(ge=1, le=3650)
+    ai_telemetry_days: int = Field(ge=1, le=3650)
+
+
+class RetentionPolicyResponse(BaseModel):
+    version: int
+    operational_metadata_days: int
+    message_content_days: int
+    customer_contact_days: int
+    workflow_records_days: int
+    knowledge_archive_days: int
+    ai_telemetry_days: int
+
+
+class PrivacyExecutionRequest(BaseModel):
+    confirmed: bool
+    idempotency_key: str = Field(min_length=1, max_length=200)
+
+
+class CustomerAnonymizationRequest(PrivacyExecutionRequest):
+    reason_code: str = Field(min_length=1, max_length=100)
+
+
+class PrivacyResultResponse(BaseModel):
+    action_id: str | None
+    action: str
+    dry_run: bool
+    policy_version: int
+    counts: dict[str, int]
+    idempotent_replay: bool

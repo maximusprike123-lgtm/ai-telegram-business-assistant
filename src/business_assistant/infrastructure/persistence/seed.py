@@ -46,6 +46,7 @@ from .sqlalchemy.models import (
     KnowledgeDocumentRow,
     QualificationSchemaRow,
     ResourceRow,
+    RetentionPolicyRow,
     ServiceResourceRow,
 )
 from .sqlalchemy.unit_of_work import SQLAlchemyUnitOfWork
@@ -316,6 +317,20 @@ async def seed_northstar(database_url: str, app_env: str) -> None:
                 await uow.services.upsert(NORTHSTAR_TENANT_ID, service)
             await uow.commit()
         async with factory() as session, session.begin():
+            await session.execute(
+                insert(RetentionPolicyRow)
+                .values(
+                    tenant_id=NORTHSTAR_TENANT_ID.value,
+                    version=1,
+                    operational_metadata_days=30,
+                    message_content_days=90,
+                    customer_contact_days=365,
+                    workflow_records_days=730,
+                    knowledge_archive_days=365,
+                    ai_telemetry_days=90,
+                )
+                .on_conflict_do_nothing(index_elements=["tenant_id"])
+            )
             qualification = northstar_qualification_schema()
             await session.execute(
                 insert(QualificationSchemaRow)

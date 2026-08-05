@@ -28,6 +28,28 @@ def test_valid_development_configuration_groups_settings() -> None:
     assert not settings.telegram.enabled
     assert not settings.redis.enabled
     assert not settings.openai.enabled
+    assert settings.limits.operational_metadata_retention_days == 30
+    assert settings.limits.customer_contact_retention_days == 365
+    assert settings.limits.workflow_retention_days == 730
+    assert settings.limits.knowledge_archive_retention_days == 365
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "OPERATIONAL_METADATA_RETENTION_DAYS",
+        "MESSAGE_RETENTION_DAYS",
+        "CUSTOMER_CONTACT_RETENTION_DAYS",
+        "WORKFLOW_RETENTION_DAYS",
+        "KNOWLEDGE_ARCHIVE_RETENTION_DAYS",
+        "AI_TELEMETRY_RETENTION_DAYS",
+    ],
+)
+def test_retention_periods_are_bounded(field: str) -> None:
+    values = valid_environment()
+    values[field] = "0"
+    with pytest.raises(ConfigurationError, match=field):
+        load_settings(values)
 
 
 def telegram_environment(*, mode: str = "webhook") -> dict[str, str]:

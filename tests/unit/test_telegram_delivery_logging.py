@@ -116,6 +116,9 @@ def test_safe_json_formatter_allowlists_context_and_drops_exception_details() ->
         "update_id": 7,
         "message_text": "must not appear",
         "token": "must not appear",
+        "phone": "+1-555-0100",
+        "email": "customer@example.test",
+        "records_affected": 3,
     }
     output = SafeJsonFormatter().format(record)
     parsed = json.loads(output)
@@ -123,6 +126,8 @@ def test_safe_json_formatter_allowlists_context_and_drops_exception_details() ->
     assert parsed["update_id"] == 7
     assert "message_text" not in output
     assert "secret" not in output
+    assert parsed["records_affected"] == 3
+    assert "customer@example.test" not in output
 
 
 def test_logging_configuration_supports_json_and_text_without_propagation() -> None:

@@ -7,11 +7,16 @@ from typing import Any
 _SAFE_FIELDS = frozenset(
     {
         "bot_id",
+        "action_id",
         "claim_result",
         "correlation_id",
+        "data_class",
         "error_code",
         "error_type",
         "event_type",
+        "policy_version",
+        "records_affected",
+        "result_code",
         "tenant_id",
         "update_id",
     }

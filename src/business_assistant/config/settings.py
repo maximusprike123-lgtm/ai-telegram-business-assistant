@@ -229,7 +229,11 @@ class FeatureConfig:
 @dataclass(frozen=True, slots=True)
 class LimitConfig:
     upload_max_bytes: int
+    operational_metadata_retention_days: int
     message_retention_days: int
+    customer_contact_retention_days: int
+    workflow_retention_days: int
+    knowledge_archive_retention_days: int
     ai_telemetry_retention_days: int
     messages_per_minute: int
     ai_calls_per_minute: int
@@ -567,7 +571,11 @@ def load_settings(environ: Mapping[str, str] | None = None) -> RuntimeSettings:
         features=features,
         limits=LimitConfig(
             _integer(values, "UPLOAD_MAX_BYTES", 10_485_760, 1024, 1_073_741_824),
+            _integer(values, "OPERATIONAL_METADATA_RETENTION_DAYS", 30, 1, 3650),
             _integer(values, "MESSAGE_RETENTION_DAYS", 90, 1, 3650),
+            _integer(values, "CUSTOMER_CONTACT_RETENTION_DAYS", 365, 1, 3650),
+            _integer(values, "WORKFLOW_RETENTION_DAYS", 730, 1, 3650),
+            _integer(values, "KNOWLEDGE_ARCHIVE_RETENTION_DAYS", 365, 1, 3650),
             _integer(values, "AI_TELEMETRY_RETENTION_DAYS", 90, 1, 3650),
             _integer(values, "RATE_LIMIT_MESSAGES_PER_MINUTE", 30, 1, 10000),
             _integer(values, "RATE_LIMIT_AI_CALLS_PER_MINUTE", 10, 1, 10000),

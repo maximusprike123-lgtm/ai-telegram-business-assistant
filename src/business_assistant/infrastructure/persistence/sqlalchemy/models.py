@@ -1195,6 +1195,72 @@ class AIOperationRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class RetentionPolicyRow(Base):
+    __tablename__ = "retention_policies"
+    __table_args__ = (
+        CheckConstraint("version >= 1", name="version_positive"),
+        CheckConstraint(
+            "operational_metadata_days BETWEEN 1 AND 3650 "
+            "AND message_content_days BETWEEN 1 AND 3650 "
+            "AND customer_contact_days BETWEEN 1 AND 3650 "
+            "AND workflow_records_days BETWEEN 1 AND 3650 "
+            "AND knowledge_archive_days BETWEEN 1 AND 3650 "
+            "AND ai_telemetry_days BETWEEN 1 AND 3650",
+            name="periods_valid",
+        ),
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    operational_metadata_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    message_content_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    customer_contact_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    workflow_records_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    knowledge_archive_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    ai_telemetry_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
+
+
+class PrivacyActionRow(Base):
+    __tablename__ = "privacy_actions"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id"),
+        UniqueConstraint("tenant_id", "idempotency_key"),
+        CheckConstraint(
+            "action_type IN ('customer_anonymization','retention_execution')",
+            name="action_type_allowed",
+        ),
+        CheckConstraint("status = 'completed'", name="status_allowed"),
+        CheckConstraint("policy_version >= 1", name="policy_version_positive"),
+        Index("ix_privacy_actions_tenant_occurred", "tenant_id", "occurred_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    action_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    target_type: Mapped[str | None] = mapped_column(String(50))
+    target_id: Mapped[str | None] = mapped_column(String(100))
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(100), nullable=False)
+    policy_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    result_counts: Mapped[dict[str, int]] = mapped_column(JSONB, nullable=False)
+    requested_by: Mapped[str] = mapped_column(String(100), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class AuditEventRow(Base):
     __tablename__ = "audit_events"
     __table_args__ = (Index("ix_audit_events_tenant_occurred", "tenant_id", "occurred_at"),)

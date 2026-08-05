@@ -62,6 +62,8 @@ async def test_schema_has_required_extensions_tables_and_constraints(
             "qualification_consents",
             "qualification_session_updates",
             "ai_operations",
+            "retention_policies",
+            "privacy_actions",
         } <= tables
         assert exclusion == 1
         async with engine.connect() as connection:
@@ -75,5 +77,19 @@ async def test_schema_has_required_extensions_tables_and_constraints(
             "embedding_dimensions",
             "instruction_risk",
         } <= knowledge_columns
+        async with engine.connect() as connection:
+            retention_columns = await connection.run_sync(
+                lambda sync: {
+                    item["name"] for item in inspect(sync).get_columns("retention_policies")
+                }
+            )
+        assert {
+            "operational_metadata_days",
+            "message_content_days",
+            "customer_contact_days",
+            "workflow_records_days",
+            "knowledge_archive_days",
+            "ai_telemetry_days",
+        } <= retention_columns
     finally:
         await engine.dispose()

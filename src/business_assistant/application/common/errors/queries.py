@@ -95,3 +95,10 @@ class HandoffError(ApplicationError):
 class KnowledgeError(ApplicationError):
     def __init__(self, message: str = "Knowledge request is invalid or unavailable") -> None:
         super().__init__("knowledge.invalid", message)
+
+
+class PrivacyError(ApplicationError):
+    def __init__(
+        self, message: str = "Privacy operation is invalid", *, code: str = "privacy.invalid"
+    ) -> None:
+        super().__init__(code, message)

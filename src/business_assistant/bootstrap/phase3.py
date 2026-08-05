@@ -15,6 +15,7 @@ from business_assistant.application.scheduling import (
 )
 from business_assistant.application.tenants import GetTenantPublicProfile
 from business_assistant.bootstrap.knowledge import build_knowledge_application
+from business_assistant.bootstrap.privacy import build_privacy_application
 from business_assistant.config import ConfigurationError, RuntimeSettings, load_settings
 from business_assistant.infrastructure.persistence import create_engine, create_session_factory
 from business_assistant.infrastructure.persistence.sqlalchemy.unit_of_work import (
@@ -67,6 +68,7 @@ def build_phase3_app(settings: RuntimeSettings) -> FastAPI:
         next_opening=GetNextOpening(typed_factory, clock),
         authenticator=StaticApiKeyAuthenticator(security.internal_api_key, principal),
         knowledge=build_knowledge_application(settings, session_factory, ai_client),
+        privacy=build_privacy_application(session_factory),
     )
     app = create_phase3_app(services)
 

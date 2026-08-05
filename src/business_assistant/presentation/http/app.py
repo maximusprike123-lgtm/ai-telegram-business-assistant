@@ -38,6 +38,11 @@ from business_assistant.application.leads import (
     ScoreRule,
     Sensitivity,
 )
+from business_assistant.application.privacy import (
+    PrivacyApplication,
+    PrivacyResult,
+    RetentionPolicy,
+)
 from business_assistant.application.scheduling import (
     BusinessDayDTO,
     BusinessStatusDTO,
@@ -49,6 +54,7 @@ from business_assistant.application.scheduling import (
 from business_assistant.application.tenants import GetTenantPublicProfile, TenantPublicProfileDTO
 from business_assistant.domain.shared import (
     CategoryId,
+    CustomerId,
     DocumentId,
     HandoffId,
     QualificationSchemaId,
@@ -61,6 +67,8 @@ from .schemas import (
     BusinessDayResponse,
     BusinessStatusResponse,
     CategoryResponse,
+    CustomerAnonymizationRequest,
+    DataClassificationResponse,
     ErrorResponse,
     FAQKnowledgeCreate,
     HandoffActionRequest,
@@ -71,8 +79,12 @@ from .schemas import (
     KnowledgeDocumentResponse,
     MarkdownKnowledgeCreate,
     NextOpeningResponse,
+    PrivacyExecutionRequest,
+    PrivacyResultResponse,
     QualificationSchemaCreate,
     QualificationSchemaResponse,
+    RetentionPolicyResponse,
+    RetentionPolicyUpdate,
     ServiceResponse,
     TenantProfileResponse,
 )
@@ -92,6 +104,7 @@ class Phase3ApiServices:
     qualification_admin: QualificationAdministration | None = None
     handoffs: HandoffApplication | None = None
     knowledge: KnowledgeApplication | None = None
+    privacy: PrivacyApplication | None = None
 
 
 def _schema_response(schema: QualificationSchema) -> QualificationSchemaResponse:
@@ -149,6 +162,29 @@ def _knowledge_answer_response(answer: KnowledgeAnswer) -> KnowledgeAnswerRespon
             for item in answer.evidence
         ),
         fallback_reason=answer.fallback_reason,
+    )
+
+
+def _retention_policy_response(policy: RetentionPolicy) -> RetentionPolicyResponse:
+    return RetentionPolicyResponse(
+        version=policy.version,
+        operational_metadata_days=policy.operational_metadata_days,
+        message_content_days=policy.message_content_days,
+        customer_contact_days=policy.customer_contact_days,
+        workflow_records_days=policy.workflow_records_days,
+        knowledge_archive_days=policy.knowledge_archive_days,
+        ai_telemetry_days=policy.ai_telemetry_days,
+    )
+
+
+def _privacy_result_response(result: PrivacyResult) -> PrivacyResultResponse:
+    return PrivacyResultResponse(
+        action_id=result.action_id,
+        action=result.action,
+        dry_run=result.dry_run,
+        policy_version=result.policy_version,
+        counts=dict(result.counts),
+        idempotent_replay=result.idempotent_replay,
     )
 
 
@@ -227,6 +263,7 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
             {"name": "Qualification", "description": "Versioned lead qualification schemas"},
             {"name": "Handoff", "description": "Authorized human handoff operations"},
             {"name": "Knowledge", "description": "Tenant-scoped approved knowledge"},
+            {"name": "Privacy", "description": "Tenant-scoped privacy and retention controls"},
         ],
     )
     key_header = APIKeyHeader(
@@ -269,7 +306,13 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
             else 401
             if exc.code.startswith("auth.")
             else 409
-            if exc.code in {"booking.conflict", "booking.expired"}
+            if exc.code
+            in {
+                "booking.conflict",
+                "booking.expired",
+                "privacy.policy_conflict",
+                "privacy.idempotency_conflict",
+            }
             else 404
             if exc.code.endswith("not_found")
             else 422
@@ -623,6 +666,121 @@ def create_phase3_app(services: Phase3ApiServices) -> FastAPI:
                     principal,
                     query=request.query,
                     locale=request.locale,
+                )
+            )
+
+    privacy_application = services.privacy
+    if privacy_application is not None:
+
+        @app.get(
+            "/api/v1/privacy/data-classifications",
+            response_model=list[DataClassificationResponse],
+            tags=["Privacy"],
+            summary="List the application data-classification inventory",
+            responses=error_responses,
+        )
+        async def list_data_classifications(
+            principal: PrincipalDependency,
+        ) -> list[DataClassificationResponse]:
+            return [
+                DataClassificationResponse(
+                    data_class=item.data_class.value,
+                    purpose=item.purpose,
+                    sensitivity=item.sensitivity,
+                    retention_action=item.retention_action.value,
+                )
+                for item in privacy_application.classifications(principal)
+            ]
+
+        @app.get(
+            "/api/v1/privacy/retention-policy",
+            response_model=RetentionPolicyResponse,
+            tags=["Privacy"],
+            summary="Read the tenant retention policy",
+            responses=error_responses,
+        )
+        async def get_retention_policy(
+            principal: PrincipalDependency,
+        ) -> RetentionPolicyResponse:
+            return _retention_policy_response(await privacy_application.get_policy(principal))
+
+        @app.put(
+            "/api/v1/privacy/retention-policy",
+            response_model=RetentionPolicyResponse,
+            tags=["Privacy"],
+            summary="Replace the tenant retention policy with optimistic concurrency",
+            responses=error_responses,
+        )
+        async def update_retention_policy(
+            request: RetentionPolicyUpdate,
+            principal: PrincipalDependency,
+        ) -> RetentionPolicyResponse:
+            policy = RetentionPolicy(
+                principal.tenant_id,
+                request.expected_version + 1,
+                request.operational_metadata_days,
+                request.message_content_days,
+                request.customer_contact_days,
+                request.workflow_records_days,
+                request.knowledge_archive_days,
+                request.ai_telemetry_days,
+            )
+            return _retention_policy_response(
+                await privacy_application.update_policy(
+                    principal, policy, expected_version=request.expected_version
+                )
+            )
+
+        @app.post(
+            "/api/v1/privacy/customers/{customer_id}/anonymize",
+            response_model=PrivacyResultResponse,
+            tags=["Privacy"],
+            summary="Anonymize one tenant customer with explicit confirmation",
+            responses=error_responses,
+        )
+        async def anonymize_customer(
+            customer_id: UUID,
+            request: CustomerAnonymizationRequest,
+            principal: PrincipalDependency,
+        ) -> PrivacyResultResponse:
+            return _privacy_result_response(
+                await privacy_application.anonymize_customer(
+                    principal,
+                    CustomerId(customer_id),
+                    confirmed=request.confirmed,
+                    idempotency_key=request.idempotency_key,
+                    reason_code=request.reason_code,
+                )
+            )
+
+        @app.get(
+            "/api/v1/privacy/retention-preview",
+            response_model=PrivacyResultResponse,
+            tags=["Privacy"],
+            summary="Preview due retention operations without changing data",
+            responses=error_responses,
+        )
+        async def preview_retention(
+            principal: PrincipalDependency,
+        ) -> PrivacyResultResponse:
+            return _privacy_result_response(await privacy_application.preview_retention(principal))
+
+        @app.post(
+            "/api/v1/privacy/retention-executions",
+            response_model=PrivacyResultResponse,
+            tags=["Privacy"],
+            summary="Execute due retention operations with explicit confirmation",
+            responses=error_responses,
+        )
+        async def execute_retention(
+            request: PrivacyExecutionRequest,
+            principal: PrincipalDependency,
+        ) -> PrivacyResultResponse:
+            return _privacy_result_response(
+                await privacy_application.execute_retention(
+                    principal,
+                    confirmed=request.confirmed,
+                    idempotency_key=request.idempotency_key,
                 )
             )
 

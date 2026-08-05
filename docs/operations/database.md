@@ -79,5 +79,5 @@ export TEST_DATABASE_URL='postgresql+asyncpg://app@localhost:5432/business_assis
 pytest
 ```
 
-CI provisions the pinned `pgvector/pgvector:0.8.2-pg18-trixie` service. Project Dockerfiles and
-Compose remain deferred to Phase 13.
+CI and the Phase 13 reference topology use pinned pgvector images. Migrations run as an explicit
+one-shot service before API/workers; see [the deployment runbook](phase-13-deployment.md).

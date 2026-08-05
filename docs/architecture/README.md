@@ -72,6 +72,9 @@ members, hashed credentials, provisioning idempotency, and operational entitleme
 adapters and workers fail closed for suspended, archived, or disabled tenants while tenant-scoped
 owner recovery remains available through protected administration routes.
 
+Phase 13 adds delivery hardening without changing dependency direction: request bounds remain in
+presentation, task/runtime configuration in bootstrap, and database indexes in infrastructure.
+
 ## Decision records
 
 The [ADR index](decisions.md) records binding baseline choices. Later phases may supersede an ADR

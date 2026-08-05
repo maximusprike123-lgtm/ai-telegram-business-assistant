@@ -42,6 +42,8 @@ pytest
 detect-secrets-hook --baseline .secrets.baseline $(git ls-files)
 python -m build --no-isolation
 python -m pip check
+pip-audit --requirement requirements.lock
+python scripts/repository_hygiene.py
 ```
 
 Set `TEST_DATABASE_URL` to a disposable real PostgreSQL database before `pytest`; the migration
@@ -114,18 +116,25 @@ test suite. CI remains authoritative even when local hooks are not installed.
 
 ## Updating dependencies
 
-Dependency ranges live in `pyproject.toml`; reproducible development versions live in
-`requirements-dev.lock`.
+Dependency ranges live in `pyproject.toml`; reproducible runtime, image-builder, and development
+versions live in `requirements.lock`, `requirements-build.lock`, and `requirements-dev.lock`.
 
 ```bash
 python -m pip install 'pip-tools>=7.5,<8'
 pip-compile --extra dev --strip-extras --output-file requirements-dev.lock pyproject.toml
+pip-compile --strip-extras --output-file requirements.lock pyproject.toml
+pip-compile --strip-extras --output-file requirements-build.lock requirements-build.in
 python -m pip install --requirement requirements-dev.lock
 python -m pip check
 ```
 
 Review lock changes and rerun the full quality gate. Do not add application dependencies for a
 later roadmap phase early.
+
+With PostgreSQL/pgvector available, `python scripts/release_smoke.py` runs the representative
+release matrix. Validate packaging with `docker compose config --quiet` and `docker build .` after
+using `APP_ENV_FILE=.env.production.example docker compose --env-file
+.env.production.example config --quiet`; replace placeholders before starting services.
 
 ## Adding code
 

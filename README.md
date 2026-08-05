@@ -32,7 +32,8 @@ knowledge answers, lead qualification, booking, and human handoff.
   metrics, feature-aware health/readiness, protected diagnostics, and operational runbooks
 - Phase 12: tenant lifecycle, atomic provisioning, tenant members/RBAC, rotating hashed credentials,
   operational entitlements, suspension enforcement, protected administration API, and audit trails
-- Phase 13: not implemented
+- Phase 13: production hardening, deterministic deployment artifacts, recovery procedures,
+  supply-chain gates, and release-candidate certification
 
 The current code is deliberately not a chatbot. Consequential operations belong to validated
 application and domain workflows; future AI output remains advisory until it passes structured,
@@ -94,6 +95,8 @@ mypy
 pytest
 detect-secrets-hook --baseline .secrets.baseline $(git ls-files)
 python -m build --no-isolation
+pip-audit --requirement requirements.lock
+python scripts/repository_hygiene.py
 ```
 
 Optional Git hooks:
@@ -133,6 +136,10 @@ Health, metrics, SLIs, alerts, and privacy-safe failure triage are in the
 [Phase 11 observability runbook](docs/operations/phase-11-observability.md).
 Tenant provisioning, lifecycle recovery, members, credentials, and capabilities are in the
 [Phase 12 administration runbook](docs/operations/phase-12-tenant-administration.md).
+Production deployment, rollback, capacity, and recovery procedures are in the
+[Phase 13 deployment runbook](docs/operations/phase-13-deployment.md) and
+[recovery runbook](docs/operations/phase-13-recovery.md). Promotion is governed by the
+[release checklist](docs/operations/release-checklist.md).
 
 ## Repository layout
 
@@ -158,6 +165,7 @@ docs/
 
 - [Full requirements traceability](docs/requirements-traceability.md)
 - [Phase 1 traceability](docs/phase-1-traceability.md)
+- [Phase 13 traceability](docs/phase-13-traceability.md)
 - [Phase 2 traceability](docs/phase-2-traceability.md)
 - [Phase 3 traceability](docs/phase-3-traceability.md)
 - [Phase 4 traceability](docs/phase-4-traceability.md)

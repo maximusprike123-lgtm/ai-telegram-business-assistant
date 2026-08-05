@@ -55,6 +55,11 @@ embedding model and bounded dimensions. Upload, retention, rate, AI retry/output
 database limits are bounded at startup.
 Production rejects message-text logging and the local-only admin bootstrap token.
 
+Phase 13 makes `API_REQUEST_TIMEOUT_SECONDS` operational at the HTTP boundary and applies
+`UPLOAD_MAX_BYTES` to declared generic request bodies as well as knowledge ingestion. The edge
+proxy must also reject oversized chunked bodies. `WORKER_TASK_SOFT_TIME_LIMIT_SECONDS` and
+`WORKER_TASK_TIME_LIMIT_SECONDS` bound Celery execution; the hard limit must exceed the soft limit.
+
 Phase 5 booking policy is tenant-owned PostgreSQL data, not environment configuration. Northstar's
 fictional defaults are a 30-minute slot interval, 30-day horizon, two-hour minimum notice,
 five-minute hold, 30-minute draft expiry, and 24-hour cancellation/rescheduling cutoff. Customer

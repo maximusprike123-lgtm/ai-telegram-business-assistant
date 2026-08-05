@@ -77,5 +77,5 @@ not acceptance by itself.
 | AI gateway/safety (7.4, 12, 16) | Provider-neutral generation/embedding ports, strict validation, evidence grounding, metadata-only telemetry | Continued evaluation |
 | CI quality baseline (21, 22) | Ruff, mypy, API/unit/PostgreSQL tests, coverage, build, secret scan | Expanded each phase |
 | Tenant administration | Phase 12 lifecycle, members/RBAC, hashed credentials, entitlements, atomic provisioning | Continued hardening |
-| Docker/runtime (19) | Explicitly deferred by the Phase 12 scope | 13 |
+| Docker/runtime (19) | Non-root multi-stage image, explicit migration job, API/worker/beat reference topology | Deployment-owner HA/TLS/secret platform |
 | Telegram delivery/idempotency (10, 16, 18) | Authenticated webhook, development polling, durable lifecycle, safe callbacks/logs | 10 outbound outbox, 11 hardening |

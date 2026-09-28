@@ -19,7 +19,7 @@ dependencies = [
   "httpx>=0.28,<1",
   "pgvector>=0.4,<1",
   "prometheus-client>=0.22,<1",
-  "SQLAlchemy[asyncio]>=2.0.45,<2.1",
+  "SQLAlchemy[asyncio]>=2.0.45,<2.2",
   "uvicorn>=0.35,<1",
 ]
 
